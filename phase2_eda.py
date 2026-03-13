@@ -1,7 +1,6 @@
 """
-PRISM — Phase 2: Exploratory Data Analysis
-Produces the kind of business-grade EDA a DS at Google,
-Amazon, or Visa would present to a product team.
+PRISM v2 — Phase 2: Deep Hypothesis-Driven EDA
+Real Telco data + macro signals
 """
 
 import pandas as pd
@@ -9,229 +8,330 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import seaborn as sns
+from scipy import stats
 import warnings
-warnings.filterwarnings("ignore")
-
-# ── Style ─────────────────────────────────────────────
-plt.rcParams.update({
-    "figure.facecolor"  : "white",
-    "axes.facecolor"    : "white",
-    "axes.grid"         : True,
-    "grid.alpha"        : 0.3,
-    "axes.spines.top"   : False,
-    "axes.spines.right" : False,
-    "font.family"       : "DejaVu Sans",
-    "font.size"         : 11,
-})
-COLORS = ["#3B8BD4", "#1D9E75", "#EF9F27", "#D85A30", "#7F77DD", "#888780"]
-
-# ── Load data ─────────────────────────────────────────
-users    = pd.read_csv("/home/claude/prism/data/users.csv", parse_dates=["signup_date"])
-events   = pd.read_csv("/home/claude/prism/data/events.csv", parse_dates=["event_date"])
-revenue  = pd.read_csv("/home/claude/prism/data/revenue.csv", parse_dates=["month"])
-labels   = pd.read_csv("/home/claude/prism/data/labels.csv")
-features = pd.read_csv("/home/claude/prism/data/feature_store.csv")
-
-df = users.merge(labels[["user_id","churned"]], on="user_id")
-
 import os
-os.makedirs("/home/claude/prism/charts", exist_ok=True)
 
-# ─────────────────────────────────────────────────────
-# CHART 1: Churn rate by plan & acquisition channel
-# ─────────────────────────────────────────────────────
-fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-fig.suptitle("PRISM — Churn Analysis by Segment", fontsize=14, fontweight="bold", y=1.01)
+warnings.filterwarnings("ignore")
+np.random.seed(42)
 
-# By plan
-plan_churn = df.groupby("plan")["churned"].agg(["mean","count"]).reset_index()
-plan_churn.columns = ["plan","churn_rate","count"]
-plan_order = ["free","basic","pro","enterprise"]
-plan_churn = plan_churn.set_index("plan").reindex(plan_order).reset_index()
+os.makedirs("charts", exist_ok=True)
 
-bars = axes[0].bar(plan_churn["plan"], plan_churn["churn_rate"] * 100,
-                   color=COLORS[:4], edgecolor="white", linewidth=1.5, width=0.6)
-for bar, (_, row) in zip(bars, plan_churn.iterrows()):
+plt.rcParams.update({
+    "figure.facecolor" : "white",
+    "axes.facecolor"   : "white",
+    "axes.grid"        : True,
+    "grid.alpha"       : 0.3,
+    "axes.spines.top"  : False,
+    "axes.spines.right": False,
+    "font.size"        : 11,
+})
+COLORS = ["#3B8BD4", "#D85A30", "#1D9E75", "#EF9F27", "#7F77DD", "#888780"]
+
+print("=" * 60)
+print("  PRISM v2 — Phase 2: Deep EDA")
+print("=" * 60)
+
+# Load data
+df = pd.read_csv("data/telco_cleaned.csv")
+fs = pd.read_csv("data/feature_store.csv")
+
+churned  = df[df["Churn_binary"] == 1]
+retained = df[df["Churn_binary"] == 0]
+
+print(f"\n  Loaded: {len(df):,} customers")
+print(f"  Churned: {len(churned):,} | Retained: {len(retained):,}")
+
+
+# ─────────────────────────────────────────────────────────────
+# CHART 1: Churn rate by key segments
+# ─────────────────────────────────────────────────────────────
+fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+fig.suptitle("PRISM — Churn Rate by Customer Segment", fontsize=14, fontweight="bold")
+
+# By contract type
+contract_churn = df.groupby("Contract")["Churn_binary"].agg(["mean","count"]).reset_index()
+contract_churn.columns = ["Contract","churn_rate","count"]
+bars = axes[0].bar(contract_churn["Contract"], contract_churn["churn_rate"]*100,
+                   color=COLORS[:3], width=0.5, edgecolor="white")
+for bar, (_, row) in zip(bars, contract_churn.iterrows()):
     axes[0].text(bar.get_x() + bar.get_width()/2,
                  bar.get_height() + 0.5,
                  f"{row['churn_rate']*100:.1f}%\n(n={int(row['count']):,})",
-                 ha="center", va="bottom", fontsize=9.5)
-axes[0].set_title("Churn Rate by Plan", fontweight="bold")
+                 ha="center", va="bottom", fontsize=9)
+axes[0].set_title("By Contract Type", fontweight="bold")
 axes[0].set_ylabel("Churn Rate (%)")
-axes[0].set_ylim(0, plan_churn["churn_rate"].max() * 130)
+axes[0].set_ylim(0, 55)
 
-# By acquisition channel
-ch_churn = df.groupby("acquisition_channel")["churned"].mean().sort_values(ascending=True) * 100
-axes[1].barh(ch_churn.index, ch_churn.values, color=COLORS[0], alpha=0.85, edgecolor="white")
-for i, v in enumerate(ch_churn.values):
-    axes[1].text(v + 0.2, i, f"{v:.1f}%", va="center", fontsize=9.5)
-axes[1].set_title("Churn Rate by Acquisition Channel", fontweight="bold")
-axes[1].set_xlabel("Churn Rate (%)")
+# By internet service
+internet_churn = df.groupby("InternetService")["Churn_binary"].agg(["mean","count"]).reset_index()
+internet_churn.columns = ["Service","churn_rate","count"]
+bars = axes[1].bar(internet_churn["Service"], internet_churn["churn_rate"]*100,
+                   color=COLORS[:3], width=0.5, edgecolor="white")
+for bar, (_, row) in zip(bars, internet_churn.iterrows()):
+    axes[1].text(bar.get_x() + bar.get_width()/2,
+                 bar.get_height() + 0.5,
+                 f"{row['churn_rate']*100:.1f}%\n(n={int(row['count']):,})",
+                 ha="center", va="bottom", fontsize=9)
+axes[1].set_title("By Internet Service", fontweight="bold")
+axes[1].set_ylabel("Churn Rate (%)")
+axes[1].set_ylim(0, 55)
+
+# By tenure bucket
+df["TenureBucket"] = pd.cut(df["tenure"], bins=[0,6,12,24,48,72],
+                             labels=["0-6m","6-12m","1-2yr","2-4yr","4+yr"])
+tenure_churn = df.groupby("TenureBucket", observed=True)["Churn_binary"].mean() * 100
+axes[2].bar(tenure_churn.index, tenure_churn.values, color=COLORS[0], alpha=0.85, width=0.5)
+for i, v in enumerate(tenure_churn.values):
+    axes[2].text(i, v + 0.5, f"{v:.1f}%", ha="center", va="bottom", fontsize=9)
+axes[2].set_title("By Tenure", fontweight="bold")
+axes[2].set_ylabel("Churn Rate (%)")
+axes[2].set_ylim(0, 60)
 
 plt.tight_layout()
-plt.savefig("/home/claude/prism/charts/01_churn_by_segment.png", dpi=150, bbox_inches="tight")
+plt.savefig("charts/01_churn_by_segment.png", dpi=150, bbox_inches="tight")
 plt.close()
-print("  Chart 1 saved: Churn by Segment")
+print("\n  Chart 1 saved: Churn by Segment")
 
-# ─────────────────────────────────────────────────────
-# CHART 2: Cohort retention heatmap
-# ─────────────────────────────────────────────────────
-events["event_month"]  = events["event_date"].dt.to_period("M")
-users["signup_month"]  = users["signup_date"].dt.to_period("M")
 
-cohort_data = events.merge(users[["user_id","signup_month"]], on="user_id")
-cohort_data["cohort_index"] = (
-    cohort_data["event_month"] - cohort_data["signup_month"]
-).apply(lambda x: x.n)
-
-cohort_counts = cohort_data[cohort_data["cohort_index"] >= 0].groupby(
-    ["signup_month","cohort_index"])["user_id"].nunique().reset_index()
-
-cohort_pivot = cohort_counts.pivot(
-    index="signup_month", columns="cohort_index", values="user_id")
-cohort_size  = cohort_pivot[0]
-retention    = cohort_pivot.divide(cohort_size, axis=0).iloc[:12, :8] * 100
-
-fig, ax = plt.subplots(figsize=(13, 6))
-sns.heatmap(retention, annot=True, fmt=".0f", cmap="Blues",
-            linewidths=0.5, ax=ax, cbar_kws={"label": "Retention %"},
-            annot_kws={"size": 9})
-ax.set_title("PRISM — Monthly Cohort Retention Heatmap (%)",
-             fontsize=13, fontweight="bold", pad=12)
-ax.set_xlabel("Months Since Signup")
-ax.set_ylabel("Signup Cohort")
-plt.tight_layout()
-plt.savefig("/home/claude/prism/charts/02_cohort_retention.png", dpi=150, bbox_inches="tight")
-plt.close()
-print("  Chart 2 saved: Cohort Retention Heatmap")
-
-# ─────────────────────────────────────────────────────
-# CHART 3: Engagement velocity vs churn
-# ─────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────
+# CHART 2: Monthly charges distribution — churned vs retained
+# ─────────────────────────────────────────────────────────────
 fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-fig.suptitle("PRISM — Behavioral Signals vs Churn", fontsize=14, fontweight="bold")
+fig.suptitle("PRISM — Revenue Signals", fontsize=14, fontweight="bold")
 
-churned     = features[features["churned"] == 1]
-not_churned = features[features["churned"] == 0]
+axes[0].hist(retained["MonthlyCharges"], bins=40, alpha=0.7,
+             color=COLORS[0], label="Retained", density=True)
+axes[0].hist(churned["MonthlyCharges"], bins=40, alpha=0.7,
+             color=COLORS[1], label="Churned", density=True)
 
-# Engagement velocity distribution
-axes[0].hist(not_churned["engagement_velocity"].clip(-5, 20), bins=40,
-             alpha=0.7, color=COLORS[1], label="Retained", density=True)
-axes[0].hist(churned["engagement_velocity"].clip(-5, 20), bins=40,
-             alpha=0.7, color=COLORS[3], label="Churned", density=True)
-axes[0].set_title("Engagement Velocity Distribution", fontweight="bold")
-axes[0].set_xlabel("Engagement Velocity (last 30d vs prior 30d)")
+# KS test
+ks_stat, ks_p = stats.ks_2samp(retained["MonthlyCharges"], churned["MonthlyCharges"])
+axes[0].set_title(f"Monthly Charges Distribution\nKS stat={ks_stat:.3f}, p={ks_p:.2e}",
+                  fontweight="bold")
+axes[0].set_xlabel("Monthly Charges ($)")
 axes[0].set_ylabel("Density")
 axes[0].legend()
 
-# Days since last active vs churn
-axes[1].hist(not_churned["days_since_last_active"].abs().clip(0, 180), bins=40,
-             alpha=0.7, color=COLORS[1], label="Retained", density=True)
-axes[1].hist(churned["days_since_last_active"].abs().clip(0, 180), bins=40,
-             alpha=0.7, color=COLORS[3], label="Churned", density=True)
-axes[1].set_title("Days Since Last Active", fontweight="bold")
-axes[1].set_xlabel("Days")
-axes[1].set_ylabel("Density")
-axes[1].legend()
-
-plt.tight_layout()
-plt.savefig("/home/claude/prism/charts/03_behavioral_signals.png", dpi=150, bbox_inches="tight")
-plt.close()
-print("  Chart 3 saved: Behavioral Signals")
-
-# ─────────────────────────────────────────────────────
-# CHART 4: Revenue at risk by segment
-# ─────────────────────────────────────────────────────
-rev_risk = features[features["churned"] == 1].copy()
-plan_cols = [c for c in features.columns if c.startswith("plan_")]
-
-fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-fig.suptitle("PRISM — Revenue at Risk", fontsize=14, fontweight="bold")
-
-# MRR distribution: churned vs retained
-axes[0].boxplot(
-    [not_churned["avg_mrr"].clip(0, 600), churned["avg_mrr"].clip(0, 600)],
+# Total charges by churn
+axes[1].boxplot(
+    [retained["TotalCharges"].dropna(), churned["TotalCharges"].dropna()],
     labels=["Retained", "Churned"],
     patch_artist=True,
     boxprops=dict(facecolor=COLORS[0], alpha=0.6),
     medianprops=dict(color="black", linewidth=2)
 )
-axes[0].set_title("MRR Distribution: Retained vs Churned", fontweight="bold")
-axes[0].set_ylabel("Average MRR ($)")
-
-# Monthly revenue at risk trend
-rev_monthly = revenue.merge(labels[["user_id","churned"]], on="user_id")
-at_risk = rev_monthly[rev_monthly["churned"] == 1].groupby("month")["mrr"].sum()
-total   = rev_monthly.groupby("month")["mrr"].sum()
-risk_pct = (at_risk / total * 100).dropna()
-
-axes[1].fill_between(risk_pct.index, risk_pct.values, alpha=0.3, color=COLORS[3])
-axes[1].plot(risk_pct.index, risk_pct.values, color=COLORS[3], linewidth=2)
-axes[1].set_title("Revenue at Risk Over Time (%)", fontweight="bold")
-axes[1].set_ylabel("% of Monthly Revenue at Risk")
-axes[1].set_xlabel("Month")
-plt.setp(axes[1].xaxis.get_majorticklabels(), rotation=45, ha="right")
+axes[1].set_title("Total Charges Distribution", fontweight="bold")
+axes[1].set_ylabel("Total Charges ($)")
 
 plt.tight_layout()
-plt.savefig("/home/claude/prism/charts/04_revenue_at_risk.png", dpi=150, bbox_inches="tight")
+plt.savefig("charts/02_revenue_signals.png", dpi=150, bbox_inches="tight")
 plt.close()
-print("  Chart 4 saved: Revenue at Risk")
+print("  Chart 2 saved: Revenue Signals")
 
-# ─────────────────────────────────────────────────────
-# CHART 5: Feature adoption funnel
-# ─────────────────────────────────────────────────────
-event_cols = [c for c in features.columns if c.startswith("evt_")]
-adoption_rates = {}
-for col in event_cols:
-    feature_name = col.replace("evt_", "")
-    used_retained = (not_churned[col] > 0).mean() * 100
-    used_churned  = (churned[col]     > 0).mean() * 100
-    adoption_rates[feature_name] = {
-        "retained": used_retained,
-        "churned" : used_churned
-    }
 
-adopt_df = pd.DataFrame(adoption_rates).T.sort_values("retained", ascending=True)
+# ─────────────────────────────────────────────────────────────
+# CHART 3: Service adoption vs churn (hypothesis test)
+# ─────────────────────────────────────────────────────────────
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+fig.suptitle("PRISM — Service Adoption & Risk Score", fontsize=14, fontweight="bold")
 
-fig, ax = plt.subplots(figsize=(10, 6))
-y = np.arange(len(adopt_df))
-w = 0.35
-ax.barh(y + w/2, adopt_df["retained"], w, label="Retained", color=COLORS[1], alpha=0.85)
-ax.barh(y - w/2, adopt_df["churned"],  w, label="Churned",  color=COLORS[3], alpha=0.85)
-ax.set_yticks(y)
-ax.set_yticklabels(adopt_df.index)
-ax.set_xlabel("% of Users Who Used Feature")
-ax.set_title("PRISM — Feature Adoption: Retained vs Churned Users",
+# Service adoption score
+adoption_churn = df.groupby("ServiceAdoptionScore")["Churn_binary"].mean() * 100
+axes[0].bar(adoption_churn.index, adoption_churn.values,
+            color=[COLORS[1] if v > 30 else COLORS[0] for v in adoption_churn.values],
+            width=0.6, edgecolor="white")
+for i, v in enumerate(adoption_churn.values):
+    axes[0].text(i, v + 0.5, f"{v:.1f}%", ha="center", va="bottom", fontsize=9)
+axes[0].set_title("Churn Rate by Service Adoption Score", fontweight="bold")
+axes[0].set_xlabel("Number of Services Used")
+axes[0].set_ylabel("Churn Rate (%)")
+axes[0].set_xticks(range(len(adoption_churn)))
+
+# Risk score distribution
+axes[1].hist(retained["RiskScore"], bins=9, alpha=0.7,
+             color=COLORS[0], label="Retained", density=True)
+axes[1].hist(churned["RiskScore"], bins=9, alpha=0.7,
+             color=COLORS[1], label="Churned", density=True)
+
+ks_stat2, ks_p2 = stats.ks_2samp(retained["RiskScore"], churned["RiskScore"])
+axes[1].set_title(f"Risk Score Distribution\nKS stat={ks_stat2:.3f}, p={ks_p2:.2e}",
+                  fontweight="bold")
+axes[1].set_xlabel("Composite Risk Score")
+axes[1].set_ylabel("Density")
+axes[1].legend()
+
+plt.tight_layout()
+plt.savefig("charts/03_service_adoption.png", dpi=150, bbox_inches="tight")
+plt.close()
+print("  Chart 3 saved: Service Adoption & Risk Score")
+
+
+# ─────────────────────────────────────────────────────────────
+# CHART 4: Payment method & paperless billing
+# ─────────────────────────────────────────────────────────────
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+fig.suptitle("PRISM — Behavioral Signals", fontsize=14, fontweight="bold")
+
+# Payment method
+pay_churn = df.groupby("PaymentMethod")["Churn_binary"].mean().sort_values(ascending=True) * 100
+axes[0].barh(pay_churn.index, pay_churn.values,
+             color=[COLORS[1] if v > 30 else COLORS[0] for v in pay_churn.values],
+             alpha=0.85)
+for i, v in enumerate(pay_churn.values):
+    axes[0].text(v + 0.3, i, f"{v:.1f}%", va="center", fontsize=9)
+axes[0].set_title("Churn Rate by Payment Method", fontweight="bold")
+axes[0].set_xlabel("Churn Rate (%)")
+axes[0].set_xlim(0, 55)
+
+# Senior citizen vs non-senior
+senior_churn = df.groupby("SeniorCitizen")["Churn_binary"].agg(["mean","count"])
+labels = ["Non-Senior", "Senior"]
+bars = axes[1].bar(labels, senior_churn["mean"]*100,
+                   color=COLORS[:2], width=0.4, edgecolor="white")
+for bar, (_, row) in zip(bars, senior_churn.iterrows()):
+    axes[1].text(bar.get_x() + bar.get_width()/2,
+                 bar.get_height() + 0.5,
+                 f"{row['mean']*100:.1f}%\n(n={int(row['count']):,})",
+                 ha="center", va="bottom", fontsize=9)
+
+# Chi-square test
+contingency = pd.crosstab(df["SeniorCitizen"], df["Churn_binary"])
+chi2, chi_p, _, _ = stats.chi2_contingency(contingency)
+axes[1].set_title(f"Senior vs Non-Senior Churn\nChi2={chi2:.1f}, p={chi_p:.2e}",
+                  fontweight="bold")
+axes[1].set_ylabel("Churn Rate (%)")
+axes[1].set_ylim(0, 50)
+
+plt.tight_layout()
+plt.savefig("charts/04_behavioral_signals.png", dpi=150, bbox_inches="tight")
+plt.close()
+print("  Chart 4 saved: Behavioral Signals")
+
+
+# ─────────────────────────────────────────────────────────────
+# CHART 5: Tenure vs Monthly Charges — scatter by churn
+# ─────────────────────────────────────────────────────────────
+fig, ax = plt.subplots(figsize=(12, 6))
+ax.scatter(retained["tenure"], retained["MonthlyCharges"],
+           alpha=0.3, color=COLORS[0], s=10, label="Retained")
+ax.scatter(churned["tenure"], churned["MonthlyCharges"],
+           alpha=0.4, color=COLORS[1], s=10, label="Churned")
+ax.set_title("PRISM — Tenure vs Monthly Charges by Churn Status",
              fontsize=13, fontweight="bold")
+ax.set_xlabel("Tenure (months)")
+ax.set_ylabel("Monthly Charges ($)")
 ax.legend()
 plt.tight_layout()
-plt.savefig("/home/claude/prism/charts/05_feature_adoption.png", dpi=150, bbox_inches="tight")
+plt.savefig("charts/05_tenure_vs_charges.png", dpi=150, bbox_inches="tight")
 plt.close()
-print("  Chart 5 saved: Feature Adoption Funnel")
+print("  Chart 5 saved: Tenure vs Charges")
 
-# ─────────────────────────────────────────────────────
-# Print key business insights
-# ─────────────────────────────────────────────────────
-print("\n" + "=" * 55)
-print("  PRISM — Key Business Insights from EDA")
-print("=" * 55)
 
-total_at_risk_mrr = features[features["churned"]==1]["avg_mrr"].sum()
-print(f"\n  Total MRR at risk        : ${total_at_risk_mrr:,.0f}/month")
-print(f"  Churned users            : {labels['churned'].sum():,} ({labels['churned'].mean()*100:.1f}%)")
+# ─────────────────────────────────────────────────────────────
+# CHART 6: Macro signals correlation with churn segments
+# ─────────────────────────────────────────────────────────────
+import json
+with open("data/macro_signals.json") as f:
+    macro = json.load(f)
 
-plan_churn_rates = df.groupby("plan")["churned"].mean().sort_values(ascending=False)
-print(f"\n  Highest churn plan       : {plan_churn_rates.index[0]} ({plan_churn_rates.iloc[0]*100:.1f}%)")
-print(f"  Lowest churn plan        : {plan_churn_rates.index[-1]} ({plan_churn_rates.iloc[-1]*100:.1f}%)")
+fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+fig.suptitle("PRISM — Macro Economic Context", fontsize=14, fontweight="bold")
 
-high_vel  = features[features["engagement_velocity"] > 2]["churned"].mean() * 100
-low_vel   = features[features["engagement_velocity"] <= 0]["churned"].mean() * 100
-print(f"\n  Churn rate (high engagement velocity) : {high_vel:.1f}%")
-print(f"  Churn rate (low/neg engagement velocity): {low_vel:.1f}%")
+macro_names  = ["GDP Growth", "Inflation", "Unemployment"]
+macro_values = [macro.get("latest_gdp_growth", 0),
+                macro.get("latest_inflation", 0),
+                macro.get("latest_unemployment", 0)]
+macro_colors = [COLORS[2], COLORS[1], COLORS[3]]
 
-top_channel = df.groupby("acquisition_channel")["churned"].mean().idxmin()
-print(f"\n  Best retention channel   : {top_channel}")
-print("\n  5 EDA charts saved to /charts/")
-print("=" * 55)
-print("  Phase 2 complete. Ready for Phase 3: ML Modeling")
-print("=" * 55)
+for i, (name, val, color) in enumerate(zip(macro_names, macro_values, macro_colors)):
+    axes[i].bar([name], [val], color=color, width=0.4, alpha=0.85)
+    axes[i].text(0, val + 0.05, f"{val:.2f}%", ha="center", va="bottom",
+                 fontsize=12, fontweight="bold")
+    axes[i].set_title(f"US {name}", fontweight="bold")
+    axes[i].set_ylabel("Rate (%)")
+    axes[i].set_ylim(0, max(val * 1.4, 1))
+    context = ("Healthy growth" if name == "GDP Growth" and val > 2
+               else "High inflation" if name == "Inflation" and val > 4
+               else "Low unemployment" if name == "Unemployment" and val < 5
+               else "Watch closely")
+    axes[i].text(0, val * 0.5, context, ha="center", va="center",
+                 fontsize=9, color="white", fontweight="bold")
+
+plt.tight_layout()
+plt.savefig("charts/06_macro_context.png", dpi=150, bbox_inches="tight")
+plt.close()
+print("  Chart 6 saved: Macro Context")
+
+
+# ─────────────────────────────────────────────────────────────
+# HYPOTHESIS TESTS — printed results
+# ─────────────────────────────────────────────────────────────
+print("\n" + "=" * 60)
+print("  PRISM — Hypothesis Test Results")
+print("=" * 60)
+
+# H1: Month-to-month customers churn significantly more
+h1_mtm  = df[df["MonthToMonth"]==1]["Churn_binary"].mean()
+h1_long = df[df["MonthToMonth"]==0]["Churn_binary"].mean()
+ct1 = pd.crosstab(df["MonthToMonth"], df["Churn_binary"])
+chi1, p1, _, _ = stats.chi2_contingency(ct1)
+print(f"\n  H1: Month-to-month customers churn more")
+print(f"      Month-to-month churn: {h1_mtm*100:.1f}%")
+print(f"      Long-term churn:      {h1_long*100:.1f}%")
+print(f"      Chi2={chi1:.1f}, p={p1:.2e} → {'CONFIRMED' if p1 < 0.05 else 'NOT confirmed'}")
+
+# H2: Single-service users churn more than multi-service
+h2_single = df[df["SingleServiceUser"]==1]["Churn_binary"].mean()
+h2_multi  = df[df["SingleServiceUser"]==0]["Churn_binary"].mean()
+ct2 = pd.crosstab(df["SingleServiceUser"], df["Churn_binary"])
+chi2_stat, p2, _, _ = stats.chi2_contingency(ct2)
+print(f"\n  H2: Single-service users churn more")
+print(f"      Single-service churn: {h2_single*100:.1f}%")
+print(f"      Multi-service churn:  {h2_multi*100:.1f}%")
+print(f"      Chi2={chi2_stat:.1f}, p={p2:.2e} → {'CONFIRMED' if p2 < 0.05 else 'NOT confirmed'}")
+
+# H3: Fiber optic customers churn more than DSL
+h3_fiber = df[df["InternetService"]=="Fiber optic"]["Churn_binary"].mean()
+h3_dsl   = df[df["InternetService"]=="DSL"]["Churn_binary"].mean()
+ct3 = pd.crosstab(df["InternetService"], df["Churn_binary"])
+chi3, p3, _, _ = stats.chi2_contingency(ct3)
+print(f"\n  H3: Fiber optic customers churn more than DSL")
+print(f"      Fiber optic churn: {h3_fiber*100:.1f}%")
+print(f"      DSL churn:         {h3_dsl*100:.1f}%")
+print(f"      Chi2={chi3:.1f}, p={p3:.2e} → {'CONFIRMED' if p3 < 0.05 else 'NOT confirmed'}")
+
+# H4: High monthly charges customers churn more
+high_charge = df[df["HighCharger"]==1]["Churn_binary"].mean()
+low_charge  = df[df["HighCharger"]==0]["Churn_binary"].mean()
+ct4 = pd.crosstab(df["HighCharger"], df["Churn_binary"])
+chi4, p4, _, _ = stats.chi2_contingency(ct4)
+print(f"\n  H4: High-charge customers churn more")
+print(f"      High charge churn: {high_charge*100:.1f}%")
+print(f"      Low charge churn:  {low_charge*100:.1f}%")
+print(f"      Chi2={chi4:.1f}, p={p4:.2e} → {'CONFIRMED' if p4 < 0.05 else 'NOT confirmed'}")
+
+# H5: New customers (0-6 months) are highest risk
+new_churn  = df[df["NewCustomer"]==1]["Churn_binary"].mean()
+old_churn  = df[df["NewCustomer"]==0]["Churn_binary"].mean()
+print(f"\n  H5: New customers (0-6m) are highest churn risk")
+print(f"      New customer churn:  {new_churn*100:.1f}%")
+print(f"      Older customer churn:{old_churn*100:.1f}%")
+print(f"      Difference:          {(new_churn-old_churn)*100:+.1f}pp")
+
+# Business impact
+total_monthly = df["MonthlyCharges"].sum()
+churned_monthly = churned["MonthlyCharges"].sum()
+high_risk = df[df["RiskScore"] >= 6]
+high_risk_mrr = high_risk["MonthlyCharges"].sum()
+
+print(f"\n" + "=" * 60)
+print(f"  Business Impact Summary")
+print(f"=" * 60)
+print(f"\n  Total MRR:              ${total_monthly:,.0f}/month")
+print(f"  MRR from churned users: ${churned_monthly:,.0f}/month ({churned_monthly/total_monthly*100:.1f}%)")
+print(f"  High-risk customers:    {len(high_risk):,} (RiskScore >= 6)")
+print(f"  High-risk MRR:          ${high_risk_mrr:,.0f}/month")
+print(f"\n  6 EDA charts saved to charts/")
+print(f"\n  Next: python phase3_modeling.py")
+print("=" * 60)
