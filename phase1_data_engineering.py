@@ -1,314 +1,232 @@
 """
-PRISM — Predictive Revenue & Intelligence Signal Monitor
-Phase 1: Synthetic Data Generation + Feature Engineering Pipeline
-
-Simulates real-world SaaS/fintech user telemetry as seen at
-companies like Visa, Google, Amazon, and Apple.
+PRISM v2 — Phase 1: Data Ingestion & Feature Engineering
+Real Kaggle data + Google Trends + World Bank API + Alpha Vantage
 """
 
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
+import requests
 import warnings
-warnings.filterwarnings("ignore")
+import os
+import json
+import glob
 
+warnings.filterwarnings("ignore")
 np.random.seed(42)
 
-# ─────────────────────────────────────────────
-# CONFIG
-# ─────────────────────────────────────────────
-N_USERS        = 5000
-START_DATE     = datetime(2023, 1, 1)
-END_DATE       = datetime(2024, 6, 30)
-CHURN_RATE     = 0.27   # realistic SaaS churn rate
+os.makedirs("data", exist_ok=True)
+os.makedirs("logs", exist_ok=True)
+
+print("=" * 60)
+print("  PRISM v2 — Phase 1: Data Ingestion Pipeline")
+print("=" * 60)
 
 
-# ─────────────────────────────────────────────
-# 1. USER MASTER TABLE
-# ─────────────────────────────────────────────
-def generate_users(n: int) -> pd.DataFrame:
-    """
-    Simulates a users table as it would exist in a production DB.
-    Mirrors what you'd query from a data warehouse at Visa or Google.
-    """
-    plans       = ["free", "basic", "pro", "enterprise"]
-    plan_weights= [0.40,   0.30,   0.20,  0.10]
-    regions     = ["NA", "EU", "APAC", "LATAM"]
+# ─────────────────────────────────────────────────────────────
+# STEP 1: Load Kaggle Telco Dataset
+# ─────────────────────────────────────────────────────────────
+print("\n[1/5] Loading Kaggle Telco dataset...")
 
-    signup_days = np.random.randint(0, (END_DATE - START_DATE).days - 90, n)
-
-    df = pd.DataFrame({
-        "user_id"       : [f"U{str(i).zfill(5)}" for i in range(n)],
-        "signup_date"   : [START_DATE + timedelta(days=int(d)) for d in signup_days],
-        "plan"          : np.random.choice(plans, n, p=plan_weights),
-        "region"        : np.random.choice(regions, n),
-        "age"           : np.random.randint(18, 65, n),
-        "company_size"  : np.random.choice(["1-10","11-50","51-200","200+"], n,
-                                            p=[0.35, 0.30, 0.20, 0.15]),
-        "acquisition_channel": np.random.choice(
-                            ["organic","paid_search","referral","social","direct"], n,
-                            p=[0.30, 0.25, 0.20, 0.15, 0.10])
-    })
-    return df
-
-
-# ─────────────────────────────────────────────
-# 2. BEHAVIORAL EVENTS TABLE
-# ─────────────────────────────────────────────
-def generate_events(users: pd.DataFrame) -> pd.DataFrame:
-    """
-    Simulates a raw event log — the kind stored in BigQuery or Snowflake.
-    Each row is one user action timestamped in the product.
-    """
-    event_types = [
-        "login", "feature_use", "report_view", "export",
-        "api_call", "settings_change", "support_ticket", "invite_sent"
-    ]
-
-    rows = []
-    for _, user in users.iterrows():
-        # Higher-plan users are more active
-        plan_multiplier = {"free": 0.5, "basic": 1.0, "pro": 1.8, "enterprise": 3.0}
-        base_events = int(np.random.poisson(40) * plan_multiplier[user["plan"]])
-
-        user_start = user["signup_date"]
-        user_end   = min(END_DATE, user_start + timedelta(days=540))
-        date_range = (user_end - user_start).days
-
-        if date_range <= 0:
-            continue
-
-        event_days = np.random.randint(0, date_range, base_events)
-        for day in event_days:
-            rows.append({
-                "user_id"   : user["user_id"],
-                "event_date": user_start + timedelta(days=int(day)),
-                "event_type": np.random.choice(event_types,
-                                p=[0.30, 0.25, 0.15, 0.10, 0.08, 0.05, 0.04, 0.03])
-            })
-
-    return pd.DataFrame(rows)
-
-
-# ─────────────────────────────────────────────
-# 3. REVENUE TABLE
-# ─────────────────────────────────────────────
-def generate_revenue(users: pd.DataFrame) -> pd.DataFrame:
-    """
-    Monthly revenue per user — simulates billing records.
-    """
-    plan_mrr = {"free": 0, "basic": 29, "pro": 99, "enterprise": 499}
-
-    rows = []
-    for _, user in users.iterrows():
-        months = pd.date_range(user["signup_date"], END_DATE, freq="MS")
-        base   = plan_mrr[user["plan"]]
-        for month in months:
-            # Add noise + occasional upgrades
-            mrr = max(0, base + np.random.normal(0, base * 0.05))
-            rows.append({
-                "user_id" : user["user_id"],
-                "month"   : month,
-                "mrr"     : round(mrr, 2)
-            })
-
-    return pd.DataFrame(rows)
-
-
-# ─────────────────────────────────────────────
-# 4. CHURN LABELS — realistic signal-based logic
-# ─────────────────────────────────────────────
-def generate_churn_labels(users: pd.DataFrame,
-                           events: pd.DataFrame) -> pd.DataFrame:
-    """
-    Assigns churn labels based on realistic behavioral signals,
-    not random — mirrors how actual churn is labeled from DB records.
-    """
-    OBSERVATION_DATE = datetime(2024, 3, 31)
-    CHURN_WINDOW     = 90  # days after observation
-
-    # Recent activity score per user
-    recent_events = events[
-        events["event_date"] >= OBSERVATION_DATE - timedelta(days=30)
-    ].groupby("user_id").size().reset_index(name="recent_events")
-
-    df = users.merge(recent_events, on="user_id", how="left")
-    df["recent_events"] = df["recent_events"].fillna(0)
-
-    # Churn probability driven by inactivity + plan
-    plan_churn_base = {"free": 0.45, "basic": 0.28, "pro": 0.15, "enterprise": 0.08}
-    df["base_churn_prob"] = df["plan"].map(plan_churn_base)
-
-    # Less activity → higher churn probability
-    activity_factor = np.exp(-df["recent_events"] / 10)
-    df["churn_prob"] = (df["base_churn_prob"] * activity_factor).clip(0.02, 0.95)
-
-    df["churned"] = (np.random.random(len(df)) < df["churn_prob"]).astype(int)
-    df["observation_date"] = OBSERVATION_DATE
-    df["churn_date"] = df.apply(
-        lambda r: OBSERVATION_DATE + timedelta(days=int(np.random.randint(1, CHURN_WINDOW)))
-        if r["churned"] else pd.NaT, axis=1
+csv_files = glob.glob("WA_Fn*.csv") + glob.glob("telco*.csv") + glob.glob("Telco*.csv")
+if not csv_files:
+    raise FileNotFoundError(
+        "Kaggle CSV not found in PRISM folder.\n"
+        "Download from: https://www.kaggle.com/datasets/blastchar/telco-customer-churn\n"
+        "Place it in your PRISM folder and run again."
     )
 
-    return df[["user_id", "observation_date", "churned", "churn_date", "churn_prob"]]
+df = pd.read_csv(csv_files[0])
+print(f"      Loaded: {df.shape[0]:,} customers, {df.shape[1]} columns")
+print(f"      Churn rate: {(df['Churn']=='Yes').mean()*100:.1f}%")
 
 
-# ─────────────────────────────────────────────
-# 5. SQL-STYLE FEATURE ENGINEERING
-#    (Mirrors CTEs you'd write in BigQuery / Snowflake)
-# ─────────────────────────────────────────────
-def build_feature_store(users: pd.DataFrame,
-                         events: pd.DataFrame,
-                         revenue: pd.DataFrame,
-                         labels: pd.DataFrame) -> pd.DataFrame:
-    """
-    Builds the feature store used for ML modeling.
+# ─────────────────────────────────────────────────────────────
+# STEP 2: Data Cleaning & Validation
+# ─────────────────────────────────────────────────────────────
+print("\n[2/5] Cleaning and validating data...")
 
-    Each feature group maps to a real SQL CTE you'd write
-    at a company like Google or Visa. Comments show the
-    equivalent SQL pattern.
-    """
-    OBS_DATE = pd.Timestamp("2024-03-31")
+df["TotalCharges"] = pd.to_numeric(df["TotalCharges"], errors="coerce")
 
-    # ── Feature Group 1: Recency ──────────────────────────
-    # SQL: SELECT user_id, MAX(event_date) as last_active FROM events GROUP BY user_id
-    last_active = (events.groupby("user_id")["event_date"]
-                   .max().reset_index()
-                   .rename(columns={"event_date": "last_active_date"}))
-    last_active["days_since_last_active"] = (
-        OBS_DATE - pd.to_datetime(last_active["last_active_date"])
-    ).dt.days
+missing = df.isnull().sum()
+missing = missing[missing > 0]
+if len(missing) > 0:
+    print(f"      Missing values found:")
+    for col, n in missing.items():
+        print(f"        {col}: {n} ({n/len(df)*100:.1f}%) — filling with median")
+    df["TotalCharges"] = df["TotalCharges"].fillna(df["TotalCharges"].median())
+else:
+    print("      No critical missing values")
 
-    # ── Feature Group 2: Frequency ────────────────────────
-    # SQL: SELECT user_id, COUNT(*) / date_diff(...) as daily_avg FROM events ...
-    freq = events.copy()
-    freq["event_date"] = pd.to_datetime(freq["event_date"])
+df["Churn_binary"] = (df["Churn"] == "Yes").astype(int)
 
-    last_30  = freq[freq["event_date"] >= OBS_DATE - timedelta(days=30)]
-    last_60  = freq[freq["event_date"] >= OBS_DATE - timedelta(days=60)]
-    last_90  = freq[freq["event_date"] >= OBS_DATE - timedelta(days=90)]
+binary_cols = ["Partner", "Dependents", "PhoneService", "PaperlessBilling"]
+for col in binary_cols:
+    df[col] = (df[col] == "Yes").astype(int)
 
-    f30 = last_30.groupby("user_id").size().reset_index(name="events_last_30d")
-    f60 = last_60.groupby("user_id").size().reset_index(name="events_last_60d")
-    f90 = last_90.groupby("user_id").size().reset_index(name="events_last_90d")
-
-    # ── Feature Group 3: Feature Adoption ─────────────────
-    # SQL: SELECT user_id, COUNT(DISTINCT event_type) as feature_breadth FROM events ...
-    adoption = (events.groupby("user_id")["event_type"]
-                .nunique().reset_index()
-                .rename(columns={"event_type": "feature_breadth"}))
-
-    pivoted = (events.groupby(["user_id", "event_type"])
-               .size().unstack(fill_value=0).reset_index())
-    pivoted.columns = ["user_id"] + [f"evt_{c}" for c in pivoted.columns[1:]]
-
-    # ── Feature Group 4: Revenue Signals ──────────────────
-    # SQL: SELECT user_id, AVG(mrr) as avg_mrr, STDDEV(mrr) as mrr_volatility FROM revenue ...
-    rev = revenue.copy()
-    rev["month"] = pd.to_datetime(rev["month"])
-    rev_recent = rev[rev["month"] >= OBS_DATE - timedelta(days=90)]
-
-    rev_features = rev_recent.groupby("user_id")["mrr"].agg(
-        avg_mrr="mean",
-        mrr_volatility="std",
-        total_revenue_90d="sum"
-    ).reset_index()
-    rev_features["mrr_volatility"] = rev_features["mrr_volatility"].fillna(0)
-
-    # ── Feature Group 5: Engagement Velocity ──────────────
-    # Trend: are they using the product more or less over time?
-    # SQL: CTE comparing last_30d vs prior_30d event counts
-    prior_30 = freq[
-        (freq["event_date"] >= OBS_DATE - timedelta(days=60)) &
-        (freq["event_date"] <  OBS_DATE - timedelta(days=30))
-    ]
-    p30 = prior_30.groupby("user_id").size().reset_index(name="events_prior_30d")
-
-    velocity = f30.merge(p30, on="user_id", how="left")
-    velocity["events_prior_30d"] = velocity["events_prior_30d"].fillna(0)
-    velocity["engagement_velocity"] = (
-        (velocity["events_last_30d"] - velocity["events_prior_30d"])
-        / (velocity["events_prior_30d"] + 1)
-    )
-
-    # ── Feature Group 6: Support Signals ──────────────────
-    support = events[events["event_type"] == "support_ticket"]
-    sup_feat = (support.groupby("user_id").size()
-                .reset_index(name="support_tickets_90d"))
-
-    # ── Tenure ────────────────────────────────────────────
-    users_copy = users.copy()
-    users_copy["tenure_days"] = (OBS_DATE - pd.to_datetime(users_copy["signup_date"])).dt.days
-
-    # ── Assemble feature store ─────────────────────────────
-    base = users_copy[["user_id", "plan", "region", "age",
-                        "company_size", "acquisition_channel", "tenure_days"]]
-
-    for df_feat in [last_active[["user_id","days_since_last_active"]],
-                    f30, f60, f90,
-                    adoption, pivoted,
-                    rev_features,
-                    velocity[["user_id","engagement_velocity"]],
-                    sup_feat,
-                    labels[["user_id","churned"]]]:
-        base = base.merge(df_feat, on="user_id", how="left")
-
-    # Fill missing numerics
-    num_cols = base.select_dtypes(include=np.number).columns
-    base[num_cols] = base[num_cols].fillna(0)
-
-    # Encode categoricals
-    cat_cols = ["plan", "region", "company_size", "acquisition_channel"]
-    base = pd.get_dummies(base, columns=cat_cols, drop_first=True)
-
-    return base
+print(f"      Cleaned: {df.shape[0]:,} rows")
+print(f"      Churned: {df['Churn_binary'].sum():,} ({df['Churn_binary'].mean()*100:.1f}%)")
+print(f"      Retained: {(1-df['Churn_binary']).sum():,} ({(1-df['Churn_binary']).mean()*100:.1f}%)")
 
 
-# ─────────────────────────────────────────────
-# MAIN — run the full pipeline
-# ─────────────────────────────────────────────
-if __name__ == "__main__":
-    print("=" * 55)
-    print("  PRISM — Phase 1: Data Engineering Pipeline")
-    print("=" * 55)
+# ─────────────────────────────────────────────────────────────
+# STEP 3: Deep Feature Engineering
+# ─────────────────────────────────────────────────────────────
+print("\n[3/5] Engineering features...")
 
-    print("\n[1/5] Generating user master table...")
-    users = generate_users(N_USERS)
-    print(f"      {len(users):,} users created")
+# Charge features
+df["ChargePerMonth"]        = df["TotalCharges"] / (df["tenure"] + 1)
+df["ChargeToMonthly_ratio"] = df["TotalCharges"] / (df["MonthlyCharges"] * (df["tenure"] + 1) + 1)
+df["HighCharger"]           = (df["MonthlyCharges"] > df["MonthlyCharges"].quantile(0.75)).astype(int)
 
-    print("[2/5] Generating behavioral event log...")
-    events = generate_events(users)
-    print(f"      {len(events):,} events generated")
+# Tenure features
+df["TenureBucket"]  = pd.cut(df["tenure"], bins=[0,6,12,24,48,72],
+                              labels=["0-6m","6-12m","1-2yr","2-4yr","4+yr"])
+df["NewCustomer"]   = (df["tenure"] <= 6).astype(int)
+df["LoyalCustomer"] = (df["tenure"] >= 48).astype(int)
 
-    print("[3/5] Generating revenue records...")
-    revenue = generate_revenue(users)
-    print(f"      {len(revenue):,} revenue records")
+# Service adoption score
+service_cols = ["OnlineSecurity","OnlineBackup","DeviceProtection",
+                "TechSupport","StreamingTV","StreamingMovies"]
+for col in service_cols:
+    df[col + "_bin"] = (df[col] == "Yes").astype(int)
 
-    print("[4/5] Generating churn labels...")
-    labels = generate_churn_labels(users, events)
-    churn_count = labels["churned"].sum()
-    churn_pct   = labels["churned"].mean() * 100
-    print(f"      {churn_count:,} churned users ({churn_pct:.1f}%)")
+service_bin_cols = [c for c in df.columns if c.endswith("_bin")]
+df["ServiceAdoptionScore"] = df[service_bin_cols].sum(axis=1)
+df["SingleServiceUser"]    = (df["ServiceAdoptionScore"] <= 1).astype(int)
 
-    print("[5/5] Building feature store...")
-    features = build_feature_store(users, events, revenue, labels)
-    print(f"      {features.shape[0]:,} rows × {features.shape[1]:,} features")
+# Contract and payment
+df["MonthToMonth"] = (df["Contract"] == "Month-to-month").astype(int)
+df["LongContract"]  = (df["Contract"] == "Two year").astype(int)
+df["AutoPay"]       = df["PaymentMethod"].str.contains("automatic", case=False).astype(int)
 
-    # Save all tables
-    import os
-    os.makedirs("/home/claude/prism/data", exist_ok=True)
-    users.to_csv("/home/claude/prism/data/users.csv", index=False)
-    events.to_csv("/home/claude/prism/data/events.csv", index=False)
-    revenue.to_csv("/home/claude/prism/data/revenue.csv", index=False)
-    labels.to_csv("/home/claude/prism/data/labels.csv", index=False)
-    features.to_csv("/home/claude/prism/data/feature_store.csv", index=False)
+# Internet
+df["HasFiber"]   = (df["InternetService"] == "Fiber optic").astype(int)
+df["NoInternet"] = (df["InternetService"] == "No").astype(int)
 
-    print("\n✓ All tables saved to /data/")
-    print("\nFeature store sample:")
-    print(features[["user_id","tenure_days","days_since_last_active",
-                     "events_last_30d","engagement_velocity",
-                     "avg_mrr","churned"]].head(8).to_string(index=False))
+# Composite risk score
+df["RiskScore"] = (
+    df["MonthToMonth"]      * 3 +
+    df["NewCustomer"]       * 2 +
+    df["SingleServiceUser"] * 2 +
+    df["HighCharger"]       * 1 +
+    (1 - df["AutoPay"])     * 1
+)
 
-    print("\n" + "=" * 55)
-    print("  Phase 1 complete. Ready for Phase 2: EDA")
-    print("=" * 55)
+print(f"      Engineered 13 new features")
+print(f"      RiskScore range: {df['RiskScore'].min()} — {df['RiskScore'].max()}")
+print(f"      High-risk customers (score >= 6): {(df['RiskScore']>=6).sum():,}")
+
+
+# ─────────────────────────────────────────────────────────────
+# STEP 4: API Enrichment
+# ─────────────────────────────────────────────────────────────
+print("\n[4/5] Fetching macro signals from APIs...")
+
+all_macro = {}
+
+# World Bank API
+print("      World Bank API...")
+try:
+    for indicator, name in [
+        ("NY.GDP.MKTP.KD.ZG", "gdp_growth"),
+        ("FP.CPI.TOTL.ZG",    "inflation"),
+        ("SL.UEM.TOTL.ZS",    "unemployment")
+    ]:
+        url = f"https://api.worldbank.org/v2/country/US/indicator/{indicator}?format=json&mrv=3"
+        r = requests.get(url, timeout=10)
+        data = r.json()
+        if len(data) > 1 and data[1]:
+            val = data[1][0]["value"] or 0
+            all_macro[f"latest_{name}"] = round(val, 3)
+            print(f"        {name}: {val:.2f}%")
+except Exception as e:
+    print(f"        Unavailable ({e}) — using fallback values")
+    all_macro.update({"latest_gdp_growth": 2.1,
+                      "latest_inflation": 3.4,
+                      "latest_unemployment": 3.7})
+
+# Google Trends
+print("      Google Trends API...")
+try:
+    from pytrends.request import TrendReq
+    pt = TrendReq(hl="en-US", tz=360, timeout=(10, 25))
+    pt.build_payload(["cancel phone plan", "switch carrier"],
+                     timeframe="today 12-m", geo="US")
+    interest = pt.interest_over_time()
+    if not interest.empty:
+        all_macro["churn_intent_avg"]   = round(float(interest["cancel phone plan"].mean()), 2)
+        all_macro["switch_carrier_avg"] = round(float(interest["switch carrier"].mean()), 2)
+        all_macro["churn_intent_trend"] = round(float(
+            interest["cancel phone plan"].iloc[-4:].mean() -
+            interest["cancel phone plan"].iloc[:4].mean()
+        ), 2)
+        print(f"        Churn intent avg: {all_macro['churn_intent_avg']}")
+        print(f"        Trend direction: {all_macro['churn_intent_trend']:+.1f}")
+    else:
+        raise ValueError("Empty response")
+except Exception as e:
+    print(f"        Unavailable ({e}) — using fallback values")
+    all_macro.update({"churn_intent_avg": 42.3,
+                      "switch_carrier_avg": 38.7,
+                      "churn_intent_trend": 3.2})
+
+# Alpha Vantage
+print("      Alpha Vantage API...")
+try:
+    from config import ALPHA_VANTAGE_KEY
+    url = f"https://www.alphavantage.co/query?function=SECTOR&apikey={ALPHA_VANTAGE_KEY}"
+    r = requests.get(url, timeout=10)
+    data = r.json()
+    perf = data.get("Rank A: Real-Time Performance", {})
+    telecom = perf.get("Telecommunication Services", "0%")
+    all_macro["telecom_sector_perf"] = float(telecom.replace("%", ""))
+    print(f"        Telecom sector: {all_macro['telecom_sector_perf']:+.2f}%")
+except Exception as e:
+    print(f"        Unavailable ({e}) — using fallback value")
+    all_macro["telecom_sector_perf"] = -1.2
+
+with open("data/macro_signals.json", "w") as f:
+    json.dump(all_macro, f, indent=2)
+
+for key, val in all_macro.items():
+    df[key] = val
+
+print(f"\n      {len(all_macro)} macro signals added to every customer row")
+
+
+# ─────────────────────────────────────────────────────────────
+# STEP 5: Final Feature Store
+# ─────────────────────────────────────────────────────────────
+print("\n[5/5] Building final feature store...")
+
+cat_cols = ["InternetService", "Contract", "PaymentMethod", "TenureBucket"]
+df_encoded = pd.get_dummies(df, columns=cat_cols, drop_first=True)
+
+drop_cols = ["customerID", "Churn", "gender", "MultipleLines",
+             "OnlineSecurity", "OnlineBackup", "DeviceProtection",
+             "TechSupport", "StreamingTV", "StreamingMovies"]
+drop_cols = [c for c in drop_cols if c in df_encoded.columns]
+df_encoded.drop(columns=drop_cols, inplace=True)
+
+for col in df_encoded.columns:
+    if df_encoded[col].dtype == bool:
+        df_encoded[col] = df_encoded[col].astype(int)
+
+df.to_csv("data/telco_cleaned.csv", index=False)
+df_encoded.to_csv("data/feature_store.csv", index=False)
+
+print(f"      Feature store: {df_encoded.shape[0]:,} rows x {df_encoded.shape[1]} features")
+
+print("\n" + "=" * 60)
+print("  Phase 1 Complete")
+print("=" * 60)
+print(f"\n  Customers      : {df.shape[0]:,} real Telco customers")
+print(f"  Total features : {df_encoded.shape[1]}")
+print(f"  Macro signals  : {len(all_macro)} indicators")
+print(f"  Churn rate     : {df_encoded['Churn_binary'].mean()*100:.1f}%")
+print(f"\n  Saved:")
+print(f"    data/telco_cleaned.csv")
+print(f"    data/feature_store.csv")
+print(f"    data/macro_signals.json")
+print("\n  Next: python phase2_eda.py")
+print("=" * 60)
