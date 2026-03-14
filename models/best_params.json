@@ -1,0 +1,12 @@
+{
+  "n_estimators": 335,
+  "max_depth": 3,
+  "learning_rate": 0.013525242449641027,
+  "subsample": 0.7771208511357645,
+  "colsample_bytree": 0.9455261839409564,
+  "min_child_weight": 8,
+  "scale_pos_weight": 2.1722972972972974,
+  "random_state": 42,
+  "verbosity": 0,
+  "eval_metric": "auc"
+}

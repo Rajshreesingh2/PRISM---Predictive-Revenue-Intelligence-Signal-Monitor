@@ -1,0 +1,304 @@
+"""
+PRISM v2 — Phase 2c: Churn Reason Clustering
+K-Means on churned customers + UMAP visualisation
+Discovers WHY customers churn — not just IF or WHEN
+"""
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import warnings
+import os
+import json
+
+warnings.filterwarnings("ignore")
+np.random.seed(42)
+
+os.makedirs("charts", exist_ok=True)
+
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import silhouette_score
+from sklearn.decomposition import PCA
+
+plt.rcParams.update({
+    "figure.facecolor": "white", "axes.facecolor": "white",
+    "axes.grid": True, "grid.alpha": 0.3,
+    "axes.spines.top": False, "axes.spines.right": False,
+    "font.size": 11,
+})
+
+ARCHETYPE_COLORS  = ["#D85A30", "#3B8BD4", "#EF9F27", "#1D9E75"]
+ARCHETYPE_NAMES   = ["Price Refugee", "Early Dropout", "Tech Dissatisfied", "Lifecycle Leaver"]
+ARCHETYPE_REASONS = [
+    "High charges, low service use, month-to-month contract",
+    "0-6 month tenure, never adopted core features",
+    "Fiber optic, no tech support, high charge-to-value ratio",
+    "Long tenure, contract expiry, lifestyle change trigger"
+]
+
+print("=" * 60)
+print("  PRISM v2 — Phase 2c: Churn Reason Clustering")
+print("=" * 60)
+
+df_full = pd.read_csv("data/telco_cleaned.csv")
+df_surv = pd.read_csv("data/survival_predictions.csv")
+
+# Merge survival predictions
+df = df_full.copy()
+if "churn_prob_30d" in df_surv.columns:
+    df["churn_prob_30d"]           = df_surv["churn_prob_30d"].values
+    df["expected_months_remaining"] = df_surv["expected_months_remaining"].values
+
+churned = df[df["Churn_binary"] == 1].copy()
+print(f"\n  Clustering {len(churned):,} churned customers to find WHY they left")
+
+
+# ─────────────────────────────────────────────────────────────
+# STEP 1: Find optimal k with silhouette score
+# ─────────────────────────────────────────────────────────────
+cluster_features = [
+    "tenure", "MonthlyCharges", "TotalCharges",
+    "service_adoption_score", "is_month_to_month",
+    "is_new_customer", "has_fiber", "charge_per_service",
+    "base_risk_score", "has_auto_pay", "is_high_charger",
+    "fiber_no_security"
+]
+cluster_features = [f for f in cluster_features if f in churned.columns]
+
+X_cluster = churned[cluster_features].fillna(0)
+scaler    = StandardScaler()
+X_scaled  = scaler.fit_transform(X_cluster)
+
+print("\n  Finding optimal number of clusters...")
+sil_scores = {}
+for k in range(2, 8):
+    km  = KMeans(n_clusters=k, random_state=42, n_init=10)
+    lbl = km.fit_predict(X_scaled)
+    sil = silhouette_score(X_scaled, lbl)
+    sil_scores[k] = sil
+    print(f"    k={k}: silhouette={sil:.4f}")
+
+best_k = max(sil_scores, key=sil_scores.get)
+print(f"\n  Optimal k={best_k} (silhouette={sil_scores[best_k]:.4f})")
+# Use 4 for interpretability if best_k >= 4
+k_final = min(best_k, 4)
+print(f"  Using k={k_final} for archetype interpretability")
+
+km_final   = KMeans(n_clusters=k_final, random_state=42, n_init=10)
+churned["cluster"] = km_final.fit_predict(X_scaled)
+
+
+# ─────────────────────────────────────────────────────────────
+# STEP 2: Profile each cluster → name the archetype
+# ─────────────────────────────────────────────────────────────
+print("\n  Profiling churn archetypes...")
+
+cluster_profiles = churned.groupby("cluster")[cluster_features].mean()
+
+# Sort clusters by most interpretable archetype mapping
+# Price Refugee: highest MonthlyCharges + is_month_to_month
+# Early Dropout: lowest tenure
+# Tech Dissatisfied: highest has_fiber + fiber_no_security
+# Lifecycle Leaver: highest tenure + lowest is_new_customer
+
+def assign_archetype(profile_row):
+    scores = {
+        0: profile_row.get("MonthlyCharges", 0) * profile_row.get("is_month_to_month", 0),
+        1: 1 / (profile_row.get("tenure", 1) + 1),
+        2: profile_row.get("has_fiber", 0) + profile_row.get("fiber_no_security", 0),
+        3: profile_row.get("tenure", 0) * (1 - profile_row.get("is_new_customer", 0)),
+    }
+    return max(scores, key=scores.get)
+
+archetype_map = {}
+for cluster_id in range(k_final):
+    row = cluster_profiles.loc[cluster_id]
+    arch = assign_archetype(row)
+    archetype_map[cluster_id] = arch
+
+churned["archetype_id"]   = churned["cluster"].map(archetype_map)
+churned["archetype_name"] = churned["archetype_id"].map(
+    {i: ARCHETYPE_NAMES[i] for i in range(len(ARCHETYPE_NAMES))}
+)
+
+archetype_counts = churned["archetype_name"].value_counts()
+print(f"\n  {'Archetype':<25} {'Count':>6} {'%':>6}")
+print("  " + "-" * 40)
+for name, count in archetype_counts.items():
+    print(f"  {name:<25} {count:>6,} {count/len(churned)*100:>5.1f}%")
+
+
+# ─────────────────────────────────────────────────────────────
+# CHART 1: UMAP / PCA cluster visualisation
+# ─────────────────────────────────────────────────────────────
+print("\n  Reducing dimensions for visualisation...")
+
+try:
+    import umap
+    reducer    = umap.UMAP(n_components=2, random_state=42, n_neighbors=15)
+    embedding  = reducer.fit_transform(X_scaled)
+    method     = "UMAP"
+except Exception:
+    pca        = PCA(n_components=2, random_state=42)
+    embedding  = pca.fit_transform(X_scaled)
+    method     = "PCA"
+    print(f"  UMAP unavailable — using PCA")
+
+print(f"  Dimensionality reduction: {method}")
+
+fig, axes = plt.subplots(1, 2, figsize=(16, 7))
+fig.suptitle(f"PRISM — Churn Reason Clusters ({method} projection)",
+             fontsize=14, fontweight="bold")
+
+# Left: colored by archetype
+for arch_id in range(k_final):
+    mask = churned["archetype_id"] == arch_id
+    if mask.sum() == 0:
+        continue
+    axes[0].scatter(
+        embedding[mask.values, 0], embedding[mask.values, 1],
+        c=ARCHETYPE_COLORS[arch_id], alpha=0.6, s=12,
+        label=ARCHETYPE_NAMES[arch_id]
+    )
+axes[0].set_title(f"Churn Archetypes ({method})", fontweight="bold")
+axes[0].set_xlabel(f"{method} 1")
+axes[0].set_ylabel(f"{method} 2")
+axes[0].legend(markerscale=2, fontsize=9)
+
+# Right: colored by monthly charges (continuous)
+sc = axes[1].scatter(
+    embedding[:, 0], embedding[:, 1],
+    c=churned["MonthlyCharges"].values,
+    cmap="RdYlGn_r", alpha=0.6, s=12
+)
+plt.colorbar(sc, ax=axes[1], label="Monthly Charges ($)")
+axes[1].set_title("Colored by Monthly Charges", fontweight="bold")
+axes[1].set_xlabel(f"{method} 1")
+axes[1].set_ylabel(f"{method} 2")
+
+plt.tight_layout()
+plt.savefig("charts/10_churn_clusters.png", dpi=150, bbox_inches="tight")
+plt.close()
+print("  Chart 10 saved: Churn clusters")
+
+
+# ─────────────────────────────────────────────────────────────
+# CHART 2: Archetype profiles — radar / bar comparison
+# ─────────────────────────────────────────────────────────────
+profile_cols = ["tenure", "MonthlyCharges", "service_adoption_score",
+                "is_month_to_month", "has_fiber", "is_new_customer"]
+profile_cols = [c for c in profile_cols if c in churned.columns]
+
+arch_profile = churned.groupby("archetype_name")[profile_cols].mean()
+
+fig, axes = plt.subplots(2, 3, figsize=(16, 10))
+fig.suptitle("PRISM — Churn Archetype Profiles", fontsize=14, fontweight="bold")
+axes = axes.flatten()
+
+for i, col in enumerate(profile_cols):
+    colors = []
+    for name in arch_profile.index:
+        arch_id = ARCHETYPE_NAMES.index(name) if name in ARCHETYPE_NAMES else 0
+        colors.append(ARCHETYPE_COLORS[arch_id % len(ARCHETYPE_COLORS)])
+    bars = axes[i].bar(range(len(arch_profile)), arch_profile[col].values,
+                       color=colors, alpha=0.85, edgecolor="white")
+    axes[i].set_xticks(range(len(arch_profile)))
+    axes[i].set_xticklabels([n.replace(" ", "\n") for n in arch_profile.index],
+                              fontsize=8)
+    axes[i].set_title(col.replace("_", " ").title(), fontweight="bold")
+    for bar, val in zip(bars, arch_profile[col].values):
+        axes[i].text(bar.get_x() + bar.get_width()/2,
+                     bar.get_height() + 0.01 * arch_profile[col].max(),
+                     f"{val:.1f}", ha="center", va="bottom", fontsize=8)
+
+plt.tight_layout()
+plt.savefig("charts/11_archetype_profiles.png", dpi=150, bbox_inches="tight")
+plt.close()
+print("  Chart 11 saved: Archetype profiles")
+
+
+# ─────────────────────────────────────────────────────────────
+# CHART 3: Business impact by archetype
+# ─────────────────────────────────────────────────────────────
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+fig.suptitle("PRISM — Revenue at Risk by Churn Archetype",
+             fontsize=14, fontweight="bold")
+
+churned["mrr_at_risk"] = churned["MonthlyCharges"]
+arch_revenue = churned.groupby("archetype_name")["mrr_at_risk"].agg(["sum","mean","count"])
+arch_revenue = arch_revenue.sort_values("sum", ascending=False)
+
+colors = [ARCHETYPE_COLORS[ARCHETYPE_NAMES.index(n)] if n in ARCHETYPE_NAMES
+          else ARCHETYPE_COLORS[0] for n in arch_revenue.index]
+
+bars = axes[0].bar(range(len(arch_revenue)), arch_revenue["sum"].values,
+                   color=colors, alpha=0.85, edgecolor="white")
+axes[0].set_xticks(range(len(arch_revenue)))
+axes[0].set_xticklabels([n.replace(" ", "\n") for n in arch_revenue.index], fontsize=9)
+axes[0].set_title("Total MRR at Risk by Archetype", fontweight="bold")
+axes[0].set_ylabel("Monthly Revenue ($)")
+for bar, val in zip(bars, arch_revenue["sum"].values):
+    axes[0].text(bar.get_x() + bar.get_width()/2,
+                 bar.get_height() + 100,
+                 f"${val:,.0f}", ha="center", va="bottom", fontsize=9)
+
+bars2 = axes[1].bar(range(len(arch_revenue)), arch_revenue["mean"].values,
+                    color=colors, alpha=0.85, edgecolor="white")
+axes[1].set_xticks(range(len(arch_revenue)))
+axes[1].set_xticklabels([n.replace(" ", "\n") for n in arch_revenue.index], fontsize=9)
+axes[1].set_title("Avg Monthly Charge per Archetype", fontweight="bold")
+axes[1].set_ylabel("Avg Monthly Charge ($)")
+for bar, val in zip(bars2, arch_revenue["mean"].values):
+    axes[1].text(bar.get_x() + bar.get_width()/2,
+                 bar.get_height() + 0.5,
+                 f"${val:.0f}", ha="center", va="bottom", fontsize=9)
+
+plt.tight_layout()
+plt.savefig("charts/12_archetype_revenue.png", dpi=150, bbox_inches="tight")
+plt.close()
+print("  Chart 12 saved: Archetype revenue impact")
+
+
+# ─────────────────────────────────────────────────────────────
+# Save archetype assignments
+# ─────────────────────────────────────────────────────────────
+archetype_output = churned[["archetype_id", "archetype_name"]].copy()
+archetype_output.to_csv("data/churn_archetypes.csv", index=True)
+
+archetype_summary = {}
+for arch_id, arch_name in enumerate(ARCHETYPE_NAMES[:k_final]):
+    mask = churned["archetype_name"] == arch_name
+    if mask.sum() == 0:
+        continue
+    archetype_summary[arch_name] = {
+        "count": int(mask.sum()),
+        "pct_of_churned": round(mask.sum() / len(churned) * 100, 1),
+        "avg_monthly_charges": round(churned[mask]["MonthlyCharges"].mean(), 2),
+        "avg_tenure": round(churned[mask]["tenure"].mean(), 1),
+        "mrr_at_risk": round(churned[mask]["MonthlyCharges"].sum(), 2),
+        "reason": ARCHETYPE_REASONS[arch_id]
+    }
+
+with open("data/archetype_summary.json", "w") as f:
+    json.dump(archetype_summary, f, indent=2)
+
+print("\n" + "=" * 60)
+print("  Phase 2c Complete — Churn Archetypes")
+print("=" * 60)
+print(f"\n  Method: K-Means (k={k_final}) + {method} visualisation")
+print(f"  Silhouette score: {sil_scores[best_k]:.4f}")
+print(f"\n  Churn Archetypes Discovered:")
+for name, info in archetype_summary.items():
+    print(f"\n  [{name}]")
+    print(f"    Customers : {info['count']:,} ({info['pct_of_churned']:.1f}% of churn)")
+    print(f"    Avg charge: ${info['avg_monthly_charges']:.2f}/month")
+    print(f"    Avg tenure: {info['avg_tenure']:.1f} months")
+    print(f"    MRR at risk: ${info['mrr_at_risk']:,.2f}")
+    print(f"    Reason: {info['reason']}")
+
+print(f"\n  Charts saved: 10, 11, 12")
+print(f"  Data saved: churn_archetypes.csv, archetype_summary.json")
+print(f"\n  Next: python phase3_modeling.py")
+print("=" * 60)

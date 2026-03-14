@@ -1,0 +1,169 @@
+
+<svg width="100%" viewBox="0 0 680 1020">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- L1: Data Sources -->
+  <text class="ts" x="340" y="18" text-anchor="middle">layer 1 — multi-source data ingestion</text>
+  <g class="node c-teal"><rect x="16" y="24" width="146" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="89" y="44" text-anchor="middle">Kaggle Telco</text>
+    <text class="ts" x="89" y="62" text-anchor="middle">7,043 real customers</text></g>
+  <g class="node c-teal"><rect x="174" y="24" width="146" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="247" y="44" text-anchor="middle">Google Trends</text>
+    <text class="ts" x="247" y="62" text-anchor="middle">Brand interest signals</text></g>
+  <g class="node c-teal"><rect x="332" y="24" width="146" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="405" y="44" text-anchor="middle">Alpha Vantage</text>
+    <text class="ts" x="405" y="62" text-anchor="middle">Financial stress index</text></g>
+  <g class="node c-teal"><rect x="490" y="24" width="174" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="577" y="44" text-anchor="middle">World Bank API</text>
+    <text class="ts" x="577" y="62" text-anchor="middle">GDP, CPI, unemployment</text></g>
+
+  <line x1="340" y1="76" x2="340" y2="108" class="arr" marker-end="url(#arrow)"/>
+
+  <!-- L2: Validation -->
+  <text class="ts" x="340" y="102" text-anchor="middle">layer 2 — data validation and cleaning</text>
+  <g class="node c-purple"><rect x="16" y="110" width="190" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="111" y="130" text-anchor="middle">Missing value audit</text>
+    <text class="ts" x="111" y="148" text-anchor="middle">MCAR / MAR / MNAR</text></g>
+  <g class="node c-purple"><rect x="220" y="110" width="190" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="315" y="130" text-anchor="middle">Outlier detection</text>
+    <text class="ts" x="315" y="148" text-anchor="middle">IQR + Isolation Forest</text></g>
+  <g class="node c-purple"><rect x="424" y="110" width="240" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="544" y="130" text-anchor="middle">Leakage prevention</text>
+    <text class="ts" x="544" y="148" text-anchor="middle">Temporal train/test split</text></g>
+
+  <line x1="340" y1="162" x2="340" y2="194" class="arr" marker-end="url(#arrow)"/>
+
+  <!-- L3: Feature Store -->
+  <text class="ts" x="340" y="188" text-anchor="middle">layer 3 — feature store (35+ engineered features)</text>
+  <g class="node c-blue"><rect x="16" y="196" width="148" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="90" y="216" text-anchor="middle">RFM features</text>
+    <text class="ts" x="90" y="234" text-anchor="middle">Recency, frequency, MRR</text></g>
+  <g class="node c-blue"><rect x="178" y="196" width="148" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="252" y="216" text-anchor="middle">Interaction ratios</text>
+    <text class="ts" x="252" y="234" text-anchor="middle">Charges per service</text></g>
+  <g class="node c-blue"><rect x="340" y="196" width="148" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="414" y="216" text-anchor="middle">Macro signals</text>
+    <text class="ts" x="414" y="234" text-anchor="middle">GDP delta, CPI change</text></g>
+  <g class="node c-blue"><rect x="502" y="196" width="162" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="583" y="216" text-anchor="middle">Trend velocity</text>
+    <text class="ts" x="583" y="234" text-anchor="middle">Brand search momentum</text></g>
+
+  <line x1="340" y1="248" x2="340" y2="280" class="arr" marker-end="url(#arrow)"/>
+
+  <!-- L4: Deep EDA -->
+  <text class="ts" x="340" y="274" text-anchor="middle">layer 4 — hypothesis-driven EDA</text>
+  <g class="node c-amber"><rect x="16" y="282" width="148" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="90" y="302" text-anchor="middle">Cohort analysis</text>
+    <text class="ts" x="90" y="320" text-anchor="middle">Retention by segment</text></g>
+  <g class="node c-amber"><rect x="178" y="282" width="148" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="252" y="302" text-anchor="middle">Statistical tests</text>
+    <text class="ts" x="252" y="320" text-anchor="middle">Chi-square, KS test</text></g>
+  <g class="node c-amber"><rect x="340" y="282" width="148" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="414" y="302" text-anchor="middle">Macro correlation</text>
+    <text class="ts" x="414" y="320" text-anchor="middle">Churn vs GDP / CPI</text></g>
+  <g class="node c-amber"><rect x="502" y="282" width="162" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="583" y="302" text-anchor="middle">Segment profiling</text>
+    <text class="ts" x="583" y="320" text-anchor="middle">High-risk cohort maps</text></g>
+
+  <line x1="340" y1="334" x2="340" y2="366" class="arr" marker-end="url(#arrow)"/>
+
+  <!-- L5: Modeling -->
+  <text class="ts" x="340" y="360" text-anchor="middle">layer 5 — model training and selection</text>
+  <g class="node c-coral"><rect x="16" y="368" width="148" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="90" y="388" text-anchor="middle">Logistic regression</text>
+    <text class="ts" x="90" y="406" text-anchor="middle">Calibrated baseline</text></g>
+  <g class="node c-coral"><rect x="178" y="368" width="148" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="252" y="388" text-anchor="middle">Random forest</text>
+    <text class="ts" x="252" y="406" text-anchor="middle">Feature importance</text></g>
+  <g class="node c-coral"><rect x="340" y="368" width="148" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="414" y="388" text-anchor="middle">XGBoost</text>
+    <text class="ts" x="414" y="406" text-anchor="middle">Optuna-tuned</text></g>
+  <g class="node c-coral"><rect x="502" y="368" width="162" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="583" y="388" text-anchor="middle">LightGBM</text>
+    <text class="ts" x="583" y="406" text-anchor="middle">Macro-enriched</text></g>
+
+  <line x1="340" y1="420" x2="340" y2="452" class="arr" marker-end="url(#arrow)"/>
+
+  <!-- L6: Evaluation -->
+  <text class="ts" x="340" y="446" text-anchor="middle">layer 6 — evaluation metrics (model + business)</text>
+  <g class="node c-green"><rect x="16" y="454" width="118" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="75" y="474" text-anchor="middle">ROC-AUC</text>
+    <text class="ts" x="75" y="492" text-anchor="middle">Discrimination power</text></g>
+  <g class="node c-green"><rect x="148" y="454" width="118" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="207" y="474" text-anchor="middle">Precision-recall</text>
+    <text class="ts" x="207" y="492" text-anchor="middle">Imbalance-aware</text></g>
+  <g class="node c-green"><rect x="280" y="454" width="118" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="339" y="474" text-anchor="middle">F1 score</text>
+    <text class="ts" x="339" y="492" text-anchor="middle">Balanced performance</text></g>
+  <g class="node c-green"><rect x="412" y="454" width="118" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="471" y="474" text-anchor="middle">Lift curve</text>
+    <text class="ts" x="471" y="492" text-anchor="middle">Campaign targeting</text></g>
+  <g class="node c-green"><rect x="544" y="454" width="120" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="604" y="474" text-anchor="middle">CLV impact</text>
+    <text class="ts" x="604" y="492" text-anchor="middle">Revenue saved</text></g>
+
+  <line x1="340" y1="506" x2="340" y2="538" class="arr" marker-end="url(#arrow)"/>
+
+  <!-- L7: Explainability + Tracking -->
+  <text class="ts" x="340" y="532" text-anchor="middle">layer 7 — explainability and experiment tracking</text>
+  <g class="node c-gray"><rect x="16" y="540" width="190" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="111" y="560" text-anchor="middle">SHAP values</text>
+    <text class="ts" x="111" y="578" text-anchor="middle">Per-customer explanation</text></g>
+  <g class="node c-gray"><rect x="220" y="540" width="190" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="315" y="560" text-anchor="middle">A/B test framework</text>
+    <text class="ts" x="315" y="578" text-anchor="middle">Causal validation</text></g>
+  <g class="node c-gray"><rect x="424" y="540" width="240" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="544" y="560" text-anchor="middle">MLflow tracking</text>
+    <text class="ts" x="544" y="578" text-anchor="middle">All runs versioned</text></g>
+
+  <line x1="340" y1="592" x2="340" y2="624" class="arr" marker-end="url(#arrow)"/>
+
+  <!-- L8: Data Pipeline -->
+  <text class="ts" x="340" y="618" text-anchor="middle">layer 8 — data pipeline and feature store</text>
+  <g class="node c-pink"><rect x="16" y="626" width="190" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="111" y="646" text-anchor="middle">Airflow / Prefect</text>
+    <text class="ts" x="111" y="664" text-anchor="middle">Daily pipeline runs</text></g>
+  <g class="node c-pink"><rect x="220" y="626" width="190" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="315" y="646" text-anchor="middle">Daily retraining</text>
+    <text class="ts" x="315" y="664" text-anchor="middle">Drift detection trigger</text></g>
+  <g class="node c-pink"><rect x="424" y="626" width="240" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="544" y="646" text-anchor="middle">Feature store</text>
+    <text class="ts" x="544" y="664" text-anchor="middle">Parquet + versioned features</text></g>
+
+  <line x1="340" y1="678" x2="340" y2="710" class="arr" marker-end="url(#arrow)"/>
+
+  <!-- L9: Deployment -->
+  <text class="ts" x="340" y="704" text-anchor="middle">layer 9 — deployment</text>
+  <g class="node c-teal"><rect x="16" y="712" width="148" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="90" y="732" text-anchor="middle">Streamlit dashboard</text>
+    <text class="ts" x="90" y="750" text-anchor="middle">Stakeholder UI</text></g>
+  <g class="node c-teal"><rect x="178" y="712" width="148" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="252" y="732" text-anchor="middle">FastAPI service</text>
+    <text class="ts" x="252" y="750" text-anchor="middle">Real-time inference</text></g>
+  <g class="node c-teal"><rect x="340" y="712" width="148" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="414" y="732" text-anchor="middle">Docker container</text>
+    <text class="ts" x="414" y="750" text-anchor="middle">One-command deploy</text></g>
+  <g class="node c-teal"><rect x="502" y="712" width="162" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="583" y="732" text-anchor="middle">AWS / GCP deploy</text>
+    <text class="ts" x="583" y="750" text-anchor="middle">CI/CD via GitHub Actions</text></g>
+
+  <!-- Legend -->
+  <g class="c-teal"><rect x="16" y="800" width="12" height="12" rx="2"/></g>
+  <text class="ts" x="34" y="811">Data + Deploy</text>
+  <g class="c-purple"><rect x="130" y="800" width="12" height="12" rx="2"/></g>
+  <text class="ts" x="148" y="811">Validation</text>
+  <g class="c-blue"><rect x="220" y="800" width="12" height="12" rx="2"/></g>
+  <text class="ts" x="238" y="811">Features</text>
+  <g class="c-amber"><rect x="310" y="800" width="12" height="12" rx="2"/></g>
+  <text class="ts" x="328" y="811">EDA</text>
+  <g class="c-coral"><rect x="380" y="800" width="12" height="12" rx="2"/></g>
+  <text class="ts" x="398" y="811">Models</text>
+  <g class="c-green"><rect x="460" y="800" width="12" height="12" rx="2"/></g>
+  <text class="ts" x="478" y="811">Metrics</text>
+  <g class="c-pink"><rect x="540" y="800" width="12" height="12" rx="2"/></g>
+  <text class="ts" x="558" y="811">Pipeline</text>
+</svg>
