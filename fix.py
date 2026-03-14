@@ -1,0 +1,7 @@
+c = open('dashboard.py', encoding='utf-8', errors='ignore').read()
+c = c.replace("ab = data[\"ab_results\"]", "ab = data[\"ab_results\"].get(\"results\", data[\"ab_results\"])")
+c = c.replace("ab.get(\"z_stat\", 0)", "ab.get(\"p_value_ztest\", 1.0)")
+c = c.replace("ab.get(\"p_value_z\", 1)", "ab.get(\"p_value_ztest\", 1.0)")
+c = c.replace("ab.get(\"n_control\", 170)", "ab.get(\"control_n\", 170)")
+open('dashboard.py', 'w', encoding='utf-8').write(c)
+print('done')

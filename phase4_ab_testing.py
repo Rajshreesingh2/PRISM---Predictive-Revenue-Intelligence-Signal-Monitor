@@ -41,7 +41,7 @@ preds  = pd.read_csv("data/predictions_with_roi.csv", index_col=0)
 telco  = pd.read_csv("data/telco_cleaned.csv")
 
 # Align telco to predictions index
-telco_aligned = telco.iloc[preds.index].reset_index(drop=True)
+telco_aligned = telco.iloc[:len(preds)].reset_index(drop=True)
 preds = preds.reset_index(drop=True)
 preds["MonthlyCharges"] = telco_aligned["MonthlyCharges"].values
 preds["tenure"]         = telco_aligned["tenure"].values
