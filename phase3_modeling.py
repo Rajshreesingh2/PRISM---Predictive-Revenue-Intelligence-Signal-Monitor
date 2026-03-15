@@ -1,8 +1,7 @@
 """
 PRISM v2 — Phase 3: Modeling Pipeline
-Logistic Regression + Random Forest + XGBoost + LightGBM
-Optuna hyperparameter tuning + SHAP explainability + MLflow tracking
-Business metrics: Lift curve, CLV impact, Intervention ROI
+XGBoost + LightGBM + Logistic Regression + Random Forest
+Optuna tuning + SHAP explainability + Business metrics
 """
 
 import pandas as pd
@@ -18,17 +17,17 @@ np.random.seed(42)
 
 os.makedirs("charts", exist_ok=True)
 os.makedirs("models", exist_ok=True)
-os.makedirs("mlruns", exist_ok=True)
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import StratifiedKFold, cross_val_score
+from sklearn.metrics import (roc_auc_score, f1_score, precision_score,
+                              recall_score, roc_curve, precision_recall_curve,
+                              average_precision_score, confusion_matrix)
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import (roc_auc_score, average_precision_score,
-                              f1_score, precision_score, recall_score,
-                              roc_curve, precision_recall_curve,
-                              confusion_matrix, classification_report)
-from sklearn.calibration import CalibratedClassifierCV
+import xgboost as xgb
+import lightgbm as lgb
+import shap
 import joblib
 
 plt.rcParams.update({
@@ -43,437 +42,386 @@ print("=" * 60)
 print("  PRISM v2 — Phase 3: Modeling Pipeline")
 print("=" * 60)
 
+
 # ─────────────────────────────────────────────────────────────
-# Load data — temporal split (no leakage)
+# STEP 1: Load & Temporal Split
 # ─────────────────────────────────────────────────────────────
 print("\n[1/7] Loading feature store with temporal split...")
 
 fs = pd.read_csv("data/feature_store.csv")
-df = pd.read_csv("data/telco_cleaned.csv")
+telco = pd.read_csv("data/telco_cleaned.csv")
 
-X = fs.drop(columns=["Churn_binary"])
-y = fs["Churn_binary"]
+# Add tenure back from telco for temporal split
+fs["tenure"] = telco["tenure"].values
 
-# Temporal split: sort by tenure, train on earlier customers
-# This prevents data leakage — we train on past, test on future
-df_sorted = fs.sort_values("tenure").reset_index(drop=True)
-X_sorted  = df_sorted.drop(columns=["Churn_binary"])
-y_sorted  = df_sorted["Churn_binary"]
+# Temporal split — sort by tenure, 80/20
+fs_sorted = fs.sort_values("tenure").reset_index(drop=True)
+split_idx  = int(len(fs_sorted) * 0.8)
+train_df   = fs_sorted.iloc[:split_idx]
+test_df    = fs_sorted.iloc[split_idx:]
 
-split_idx = int(len(df_sorted) * 0.8)
-X_train, X_test = X_sorted.iloc[:split_idx], X_sorted.iloc[split_idx:]
-y_train, y_test = y_sorted.iloc[:split_idx], y_sorted.iloc[split_idx:]
+feature_cols = [c for c in fs.columns if c not in ["Churn_binary", "tenure"]]
 
-scaler  = StandardScaler()
-X_train_scaled = scaler.fit_transform(X_train)
-X_test_scaled  = scaler.transform(X_test)
+X_train = train_df[feature_cols].fillna(0)
+y_train = train_df["Churn_binary"]
+X_test  = test_df[feature_cols].fillna(0)
+y_test  = test_df["Churn_binary"]
 
-print(f"      Train: {len(X_train):,} customers (shorter tenure)")
-print(f"      Test:  {len(X_test):,} customers (longer tenure)")
+print(f"      Train: {len(X_train):,} customers (temporal 80%)")
+print(f"      Test:  {len(X_test):,} customers (temporal 20%)")
+print(f"      Features: {len(feature_cols)}")
 print(f"      Train churn rate: {y_train.mean()*100:.1f}%")
 print(f"      Test churn rate:  {y_test.mean()*100:.1f}%")
-print(f"      Features: {X_train.shape[1]}")
-print(f"      Split type: TEMPORAL (no data leakage)")
+
+scaler  = StandardScaler()
+X_train_sc = scaler.fit_transform(X_train)
+X_test_sc  = scaler.transform(X_test)
 
 
 # ─────────────────────────────────────────────────────────────
-# Model training
+# STEP 2: Baseline — Logistic Regression
 # ─────────────────────────────────────────────────────────────
-print("\n[2/7] Training baseline models...")
+print("\n[2/7] Training models...")
+print("      Logistic Regression (baseline)...")
 
-results = {}
+lr = LogisticRegression(max_iter=1000, random_state=42, class_weight="balanced")
+lr.fit(X_train_sc, y_train)
+lr_probs = lr.predict_proba(X_test_sc)[:, 1]
+lr_preds = (lr_probs >= 0.5).astype(int)
 
-# 1. Logistic Regression (calibrated baseline)
-print("      Logistic Regression...")
-lr = LogisticRegression(max_iter=1000, class_weight="balanced", random_state=42)
-lr.fit(X_train_scaled, y_train)
-lr_probs = lr.predict_proba(X_test_scaled)[:, 1]
-results["Logistic Regression"] = {
-    "model": lr, "probs": lr_probs,
-    "roc_auc": roc_auc_score(y_test, lr_probs),
-    "avg_precision": average_precision_score(y_test, lr_probs),
-    "f1": f1_score(y_test, (lr_probs > 0.5).astype(int)),
-}
-print(f"        ROC-AUC: {results['Logistic Regression']['roc_auc']:.4f}")
+print(f"        ROC-AUC: {roc_auc_score(y_test, lr_probs):.4f}")
 
-# 2. Random Forest
+
+# ─────────────────────────────────────────────────────────────
+# STEP 3: Random Forest
+# ─────────────────────────────────────────────────────────────
 print("      Random Forest...")
-rf = RandomForestClassifier(n_estimators=200, class_weight="balanced",
-                             max_depth=10, random_state=42, n_jobs=-1)
+
+rf = RandomForestClassifier(n_estimators=200, max_depth=8, random_state=42,
+                             class_weight="balanced", n_jobs=-1)
 rf.fit(X_train, y_train)
 rf_probs = rf.predict_proba(X_test)[:, 1]
-results["Random Forest"] = {
-    "model": rf, "probs": rf_probs,
-    "roc_auc": roc_auc_score(y_test, rf_probs),
-    "avg_precision": average_precision_score(y_test, rf_probs),
-    "f1": f1_score(y_test, (rf_probs > 0.5).astype(int)),
-}
-print(f"        ROC-AUC: {results['Random Forest']['roc_auc']:.4f}")
+rf_preds = (rf_probs >= 0.5).astype(int)
 
-# 3. XGBoost
-print("      XGBoost...")
-try:
-    from xgboost import XGBClassifier
-    scale_pos = (y_train == 0).sum() / (y_train == 1).sum()
-    xgb = XGBClassifier(n_estimators=300, max_depth=6, learning_rate=0.05,
-                         subsample=0.8, colsample_bytree=0.8,
-                         scale_pos_weight=scale_pos,
-                         random_state=42, eval_metric="auc",
-                         verbosity=0, use_label_encoder=False)
-    xgb.fit(X_train, y_train,
-            eval_set=[(X_test, y_test)], verbose=False)
-    xgb_probs = xgb.predict_proba(X_test)[:, 1]
-    results["XGBoost"] = {
-        "model": xgb, "probs": xgb_probs,
-        "roc_auc": roc_auc_score(y_test, xgb_probs),
-        "avg_precision": average_precision_score(y_test, xgb_probs),
-        "f1": f1_score(y_test, (xgb_probs > 0.5).astype(int)),
-    }
-    print(f"        ROC-AUC: {results['XGBoost']['roc_auc']:.4f}")
-except ImportError:
-    print("        XGBoost not installed — skipping")
-
-# 4. LightGBM
-print("      LightGBM...")
-try:
-    from lightgbm import LGBMClassifier
-    lgbm = LGBMClassifier(n_estimators=300, max_depth=6, learning_rate=0.05,
-                           subsample=0.8, colsample_bytree=0.8,
-                           class_weight="balanced",
-                           random_state=42, verbose=-1)
-    lgbm.fit(X_train, y_train)
-    lgbm_probs = lgbm.predict_proba(X_test)[:, 1]
-    results["LightGBM"] = {
-        "model": lgbm, "probs": lgbm_probs,
-        "roc_auc": roc_auc_score(y_test, lgbm_probs),
-        "avg_precision": average_precision_score(y_test, lgbm_probs),
-        "f1": f1_score(y_test, (lgbm_probs > 0.5).astype(int)),
-    }
-    print(f"        ROC-AUC: {results['LightGBM']['roc_auc']:.4f}")
-except ImportError:
-    print("        LightGBM not installed — skipping")
+print(f"        ROC-AUC: {roc_auc_score(y_test, rf_probs):.4f}")
 
 
 # ─────────────────────────────────────────────────────────────
-# Optuna hyperparameter tuning on best model
+# STEP 4: XGBoost with Optuna tuning
 # ─────────────────────────────────────────────────────────────
-print("\n[3/7] Optuna hyperparameter tuning (XGBoost)...")
+print("      XGBoost + Optuna tuning (50 trials)...")
 
 try:
     import optuna
     optuna.logging.set_verbosity(optuna.logging.WARNING)
 
-    def objective(trial):
+    scale_pos = (y_train == 0).sum() / (y_train == 1).sum()
+
+    def xgb_objective(trial):
         params = {
             "n_estimators"    : trial.suggest_int("n_estimators", 100, 500),
             "max_depth"       : trial.suggest_int("max_depth", 3, 8),
             "learning_rate"   : trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
             "subsample"       : trial.suggest_float("subsample", 0.6, 1.0),
             "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
-            "min_child_weight": trial.suggest_int("min_child_weight", 1, 10),
             "scale_pos_weight": scale_pos,
             "random_state"    : 42,
-            "verbosity"       : 0,
             "eval_metric"     : "auc",
+            "verbosity"       : 0,
         }
-        from xgboost import XGBClassifier
-        model = XGBClassifier(**params, use_label_encoder=False)
-        cv    = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
-        score = cross_val_score(model, X_train, y_train,
-                                cv=cv, scoring="roc_auc", n_jobs=-1)
-        return score.mean()
+        model = xgb.XGBClassifier(**params)
+        cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
+        scores = cross_val_score(model, X_train, y_train, cv=cv,
+                                 scoring="roc_auc", n_jobs=-1)
+        return scores.mean()
 
     study = optuna.create_study(direction="maximize")
-    study.optimize(objective, n_trials=50, show_progress_bar=False)
+    study.optimize(xgb_objective, n_trials=50, show_progress_bar=False)
 
-    best_params = study.best_params
-    best_params["scale_pos_weight"] = scale_pos
-    best_params["random_state"]     = 42
-    best_params["verbosity"]        = 0
-    best_params["eval_metric"]      = "auc"
+    best_xgb_params = study.best_params
+    best_xgb_params["scale_pos_weight"] = scale_pos
+    best_xgb_params["random_state"]     = 42
+    best_xgb_params["verbosity"]        = 0
+    print(f"        Best CV AUC: {study.best_value:.4f}")
 
-    from xgboost import XGBClassifier
-    xgb_tuned = XGBClassifier(**best_params, use_label_encoder=False)
-    xgb_tuned.fit(X_train, y_train)
-    xgb_tuned_probs = xgb_tuned.predict_proba(X_test)[:, 1]
-
-    results["XGBoost (Tuned)"] = {
-        "model": xgb_tuned, "probs": xgb_tuned_probs,
-        "roc_auc": roc_auc_score(y_test, xgb_tuned_probs),
-        "avg_precision": average_precision_score(y_test, xgb_tuned_probs),
-        "f1": f1_score(y_test, (xgb_tuned_probs > 0.5).astype(int)),
+except ImportError:
+    print("        Optuna not found — using default params")
+    best_xgb_params = {
+        "n_estimators": 300, "max_depth": 5, "learning_rate": 0.05,
+        "subsample": 0.8, "colsample_bytree": 0.8,
+        "scale_pos_weight": (y_train==0).sum()/(y_train==1).sum(),
+        "random_state": 42, "verbosity": 0
     }
-    print(f"      Best trial ROC-AUC: {study.best_value:.4f}")
-    print(f"      Tuned model ROC-AUC: {results['XGBoost (Tuned)']['roc_auc']:.4f}")
-    print(f"      Best params: {best_params}")
 
-    with open("models/best_params.json", "w") as f:
-        json.dump({k: float(v) if isinstance(v, (np.floating, float)) else v
-                   for k, v in best_params.items()}, f, indent=2)
-
-except Exception as e:
-    print(f"      Optuna skipped: {e}")
+xgb_model = xgb.XGBClassifier(**best_xgb_params)
+xgb_model.fit(X_train, y_train)
+xgb_probs = xgb_model.predict_proba(X_test)[:, 1]
+xgb_preds = (xgb_probs >= 0.5).astype(int)
+print(f"        ROC-AUC (test): {roc_auc_score(y_test, xgb_probs):.4f}")
 
 
 # ─────────────────────────────────────────────────────────────
-# Select best model
+# STEP 5: LightGBM
 # ─────────────────────────────────────────────────────────────
-best_name  = max(results, key=lambda k: results[k]["roc_auc"])
-best_result= results[best_name]
-best_probs = best_result["probs"]
-best_model = best_result["model"]
+print("      LightGBM...")
 
-print(f"\n  Best model: {best_name}")
-print(f"  ROC-AUC:    {best_result['roc_auc']:.4f}")
-print(f"  F1 Score:   {best_result['f1']:.4f}")
-print(f"  Avg Prec:   {best_result['avg_precision']:.4f}")
+lgbm = lgb.LGBMClassifier(n_estimators=300, max_depth=6, learning_rate=0.05,
+                            subsample=0.8, colsample_bytree=0.8,
+                            class_weight="balanced", random_state=42,
+                            verbose=-1)
+lgbm.fit(X_train, y_train)
+lgbm_probs = lgbm.predict_proba(X_test)[:, 1]
+lgbm_preds = (lgbm_probs >= 0.5).astype(int)
+print(f"        ROC-AUC: {roc_auc_score(y_test, lgbm_probs):.4f}")
 
 
 # ─────────────────────────────────────────────────────────────
-# CHART 1: Model comparison
+# STEP 6: Model Comparison
+# ─────────────────────────────────────────────────────────────
+print("\n[3/7] Comparing models...")
+
+models = {
+    "Logistic Regression": (lr_probs,  lr_preds),
+    "Random Forest"      : (rf_probs,  rf_preds),
+    "XGBoost"            : (xgb_probs, xgb_preds),
+    "LightGBM"           : (lgbm_probs,lgbm_preds),
+}
+
+results = {}
+print(f"\n  {'Model':<22} {'ROC-AUC':>8} {'F1':>8} {'Precision':>10} {'Recall':>8} {'Avg-PR':>8}")
+print("  " + "-" * 70)
+for name, (probs, preds) in models.items():
+    auc  = roc_auc_score(y_test, probs)
+    f1   = f1_score(y_test, preds)
+    prec = precision_score(y_test, preds)
+    rec  = recall_score(y_test, preds)
+    apr  = average_precision_score(y_test, probs)
+    results[name] = {"auc": auc, "f1": f1, "precision": prec,
+                     "recall": rec, "avg_pr": apr}
+    print(f"  {name:<22} {auc:>8.4f} {f1:>8.4f} {prec:>10.4f} {rec:>8.4f} {apr:>8.4f}")
+
+best_model_name = max(results, key=lambda x: results[x]["auc"])
+print(f"\n  Best model: {best_model_name} (ROC-AUC={results[best_model_name]['auc']:.4f})")
+
+best_probs = models[best_model_name][0]
+best_model = {"Logistic Regression": lr, "Random Forest": rf,
+              "XGBoost": xgb_model, "LightGBM": lgbm}[best_model_name]
+
+
+# ─────────────────────────────────────────────────────────────
+# CHART 1: ROC + PR curves
 # ─────────────────────────────────────────────────────────────
 print("\n[4/7] Generating evaluation charts...")
 
-fig, axes = plt.subplots(1, 3, figsize=(17, 5))
-fig.suptitle("PRISM — Model Comparison", fontsize=14, fontweight="bold")
+fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+fig.suptitle("PRISM — Model Evaluation", fontsize=14, fontweight="bold")
 
-model_names = list(results.keys())
-roc_aucs    = [results[m]["roc_auc"] for m in model_names]
-f1_scores   = [results[m]["f1"] for m in model_names]
-avg_precs   = [results[m]["avg_precision"] for m in model_names]
+for (name, (probs, _)), color in zip(models.items(), COLORS):
+    fpr, tpr, _ = roc_curve(y_test, probs)
+    auc = results[name]["auc"]
+    axes[0].plot(fpr, tpr, color=color, lw=2, label=f"{name} (AUC={auc:.3f})")
 
-x = np.arange(len(model_names))
-bars = axes[0].bar(x, roc_aucs, color=COLORS[:len(model_names)], alpha=0.85, width=0.5)
-axes[0].set_xticks(x)
-axes[0].set_xticklabels([m.replace(" ", "\n") for m in model_names], fontsize=8)
-axes[0].set_title("ROC-AUC", fontweight="bold")
-axes[0].set_ylim(0.5, 1.0)
-for bar, val in zip(bars, roc_aucs):
-    axes[0].text(bar.get_x()+bar.get_width()/2, bar.get_height()+0.002,
-                 f"{val:.4f}", ha="center", va="bottom", fontsize=8)
+axes[0].plot([0,1],[0,1], "k--", alpha=0.3, lw=1)
+axes[0].set_title("ROC Curves", fontweight="bold")
+axes[0].set_xlabel("False Positive Rate")
+axes[0].set_ylabel("True Positive Rate")
+axes[0].legend(fontsize=9)
 
-bars2 = axes[1].bar(x, f1_scores, color=COLORS[:len(model_names)], alpha=0.85, width=0.5)
-axes[1].set_xticks(x)
-axes[1].set_xticklabels([m.replace(" ", "\n") for m in model_names], fontsize=8)
-axes[1].set_title("F1 Score", fontweight="bold")
-axes[1].set_ylim(0, 1.0)
-for bar, val in zip(bars2, f1_scores):
-    axes[1].text(bar.get_x()+bar.get_width()/2, bar.get_height()+0.002,
-                 f"{val:.4f}", ha="center", va="bottom", fontsize=8)
+for (name, (probs, _)), color in zip(models.items(), COLORS):
+    prec_c, rec_c, _ = precision_recall_curve(y_test, probs)
+    apr = results[name]["avg_pr"]
+    axes[1].plot(rec_c, prec_c, color=color, lw=2, label=f"{name} (AP={apr:.3f})")
 
-# ROC curves
-for name, color in zip(model_names, COLORS):
-    fpr, tpr, _ = roc_curve(y_test, results[name]["probs"])
-    axes[2].plot(fpr, tpr, color=color, lw=1.5,
-                 label=f"{name} ({results[name]['roc_auc']:.3f})")
-axes[2].plot([0,1],[0,1],"k--", alpha=0.4, label="Random")
-axes[2].set_title("ROC Curves", fontweight="bold")
-axes[2].set_xlabel("False Positive Rate")
-axes[2].set_ylabel("True Positive Rate")
-axes[2].legend(fontsize=7)
+axes[1].set_title("Precision-Recall Curves", fontweight="bold")
+axes[1].set_xlabel("Recall")
+axes[1].set_ylabel("Precision")
+axes[1].legend(fontsize=9)
 
 plt.tight_layout()
-plt.savefig("charts/13_model_comparison.png", dpi=150, bbox_inches="tight")
+plt.savefig("charts/13_roc_pr_curves.png", dpi=150, bbox_inches="tight")
 plt.close()
-print("      Chart 13 saved: Model comparison")
+print("      Chart 13 saved: ROC + PR curves")
 
 
 # ─────────────────────────────────────────────────────────────
 # CHART 2: Lift curve (business metric)
 # ─────────────────────────────────────────────────────────────
+print("      Computing lift curve...")
+
+telco_test = telco.iloc[test_df.index] if len(telco) == len(fs) else telco.iloc[-len(X_test):]
+monthly_charges = telco_test["MonthlyCharges"].values if len(telco_test) == len(X_test) else np.full(len(X_test), 65)
+
+lift_df = pd.DataFrame({
+    "prob"           : best_probs,
+    "actual"         : y_test.values,
+    "monthly_charges": monthly_charges
+}).sort_values("prob", ascending=False).reset_index(drop=True)
+
+lift_df["cumulative_churn"]    = lift_df["actual"].cumsum()
+lift_df["cumulative_pct"]      = (lift_df.index + 1) / len(lift_df)
+lift_df["cumulative_mrr_saved"]= (lift_df["actual"] * lift_df["monthly_charges"]).cumsum()
+
+total_churners = lift_df["actual"].sum()
+lift_df["lift"] = (lift_df["cumulative_churn"] / (lift_df.index + 1)) / (total_churners / len(lift_df))
+
 fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-fig.suptitle("PRISM — Business Metrics: Lift Curve & Precision-Recall",
-             fontsize=14, fontweight="bold")
+fig.suptitle("PRISM — Business Impact Metrics", fontsize=14, fontweight="bold")
 
-# Lift curve
-df_lift = pd.DataFrame({"prob": best_probs, "actual": y_test.values})
-df_lift = df_lift.sort_values("prob", ascending=False).reset_index(drop=True)
-df_lift["decile"] = pd.qcut(df_lift.index, 10, labels=False)
-
-baseline_rate = y_test.mean()
-lift_data = df_lift.groupby("decile")["actual"].mean() / baseline_rate
-axes[0].bar(range(1, 11), lift_data.values[::-1],
-            color=[COLORS[1] if v > 2 else COLORS[0] for v in lift_data.values[::-1]],
-            alpha=0.85, edgecolor="white")
-axes[0].axhline(y=1, color="gray", linestyle="--", alpha=0.7, label="Baseline (random)")
-axes[0].set_title("Lift Curve by Decile\n(Top decile = highest risk customers)",
-                  fontweight="bold")
-axes[0].set_xlabel("Decile (1=highest risk)")
-axes[0].set_ylabel("Lift over baseline")
+axes[0].plot(lift_df["cumulative_pct"]*100, lift_df["lift"],
+             color=COLORS[0], lw=2.5, label=f"{best_model_name}")
+axes[0].axhline(y=1, color="gray", linestyle="--", alpha=0.5, label="Random baseline")
+axes[0].fill_between(lift_df["cumulative_pct"]*100, 1, lift_df["lift"],
+                      alpha=0.15, color=COLORS[0])
+axes[0].set_title("Lift Curve — Model vs Random Targeting", fontweight="bold")
+axes[0].set_xlabel("% of Customers Contacted")
+axes[0].set_ylabel("Lift (x better than random)")
 axes[0].legend()
-for i, v in enumerate(lift_data.values[::-1]):
-    axes[0].text(i+1, v+0.02, f"{v:.1f}x", ha="center", va="bottom", fontsize=8)
 
-# Precision-Recall curve
-prec, rec, _ = precision_recall_curve(y_test, best_probs)
-axes[1].plot(rec, prec, color=COLORS[0], lw=2)
-axes[1].axhline(y=baseline_rate, color="gray", linestyle="--",
-                alpha=0.7, label=f"Baseline ({baseline_rate:.2f})")
-axes[1].set_title("Precision-Recall Curve", fontweight="bold")
-axes[1].set_xlabel("Recall")
-axes[1].set_ylabel("Precision")
-axes[1].legend()
-axes[1].fill_between(rec, prec, baseline_rate, alpha=0.1, color=COLORS[0])
+top20_mrr = lift_df.iloc[:int(len(lift_df)*0.2)]["cumulative_mrr_saved"].max()
+axes[1].plot(lift_df["cumulative_pct"]*100, lift_df["cumulative_mrr_saved"],
+             color=COLORS[1], lw=2.5)
+axes[1].axvline(x=20, color="gray", linestyle="--", alpha=0.5)
+axes[1].text(21, top20_mrr*0.8, f"Top 20%:\n${top20_mrr:,.0f} MRR\nsaved",
+             fontsize=9, color=COLORS[1])
+axes[1].set_title("Cumulative MRR Saved by Intervention", fontweight="bold")
+axes[1].set_xlabel("% of Customers Contacted")
+axes[1].set_ylabel("Cumulative MRR Saved ($)")
 
 plt.tight_layout()
-plt.savefig("charts/14_business_metrics.png", dpi=150, bbox_inches="tight")
+plt.savefig("charts/14_lift_business_impact.png", dpi=150, bbox_inches="tight")
 plt.close()
-print("      Chart 14 saved: Business metrics (lift + PR)")
+print("      Chart 14 saved: Lift + business impact")
 
 
 # ─────────────────────────────────────────────────────────────
 # CHART 3: SHAP explainability
 # ─────────────────────────────────────────────────────────────
 print("\n[5/7] Computing SHAP values...")
+
 try:
-    import shap
-    explainer   = shap.TreeExplainer(best_model)
+    explainer   = shap.TreeExplainer(best_model if best_model_name != "Logistic Regression"
+                                     else xgb_model)
+    shap_model  = best_model if best_model_name != "Logistic Regression" else xgb_model
     shap_values = explainer.shap_values(X_test)
 
     if isinstance(shap_values, list):
-        sv = shap_values[1]
-    else:
-        sv = shap_values
+        shap_values = shap_values[1]
 
     fig, axes = plt.subplots(1, 2, figsize=(16, 7))
-    fig.suptitle(f"PRISM — SHAP Explainability ({best_name})",
-                 fontsize=14, fontweight="bold")
+    fig.suptitle("PRISM — SHAP Explainability", fontsize=14, fontweight="bold")
 
     # Global feature importance
-    mean_shap = np.abs(sv).mean(axis=0)
-    shap_df   = pd.DataFrame({"feature": X_test.columns, "importance": mean_shap})
+    mean_shap = np.abs(shap_values).mean(axis=0)
+    shap_df   = pd.DataFrame({"feature": feature_cols, "importance": mean_shap})
     shap_df   = shap_df.sort_values("importance", ascending=True).tail(15)
+
     axes[0].barh(shap_df["feature"], shap_df["importance"],
                  color=COLORS[0], alpha=0.85)
     axes[0].set_title("Top 15 Features by SHAP Importance", fontweight="bold")
     axes[0].set_xlabel("Mean |SHAP value|")
 
-    # SHAP beeswarm (summary plot to file)
-    plt.figure(figsize=(10, 8))
-    shap.summary_plot(sv, X_test, max_display=15, show=False)
-    plt.title(f"SHAP Summary — {best_name}", fontweight="bold")
-    plt.tight_layout()
-    plt.savefig("charts/15b_shap_beeswarm.png", dpi=150, bbox_inches="tight")
-    plt.close()
+    # SHAP summary dot plot (manual)
+    top_features = shap_df["feature"].tolist()[-10:]
+    top_idx      = [list(feature_cols).index(f) for f in top_features]
 
-    # Back to subplot
-    fig, axes = plt.subplots(1, 2, figsize=(16, 7))
-    fig.suptitle(f"PRISM — SHAP Explainability ({best_name})",
-                 fontsize=14, fontweight="bold")
-    axes[0].barh(shap_df["feature"], shap_df["importance"],
-                 color=COLORS[0], alpha=0.85)
-    axes[0].set_title("Top 15 Features — Global Importance", fontweight="bold")
-    axes[0].set_xlabel("Mean |SHAP value|")
+    for i, (feat, idx) in enumerate(zip(top_features, top_idx)):
+        feat_vals  = X_test.iloc[:, idx].values
+        shap_vals  = shap_values[:, idx]
+        feat_norm  = (feat_vals - feat_vals.min()) / (feat_vals.max() - feat_vals.min() + 1e-8)
+        colors_dot = plt.cm.RdYlBu_r(feat_norm)
+        axes[1].scatter(shap_vals, np.full_like(shap_vals, i),
+                        c=colors_dot, alpha=0.4, s=8)
 
-    # SHAP for single high-risk customer
-    high_risk_idx = np.argmax(best_probs)
-    customer_shap = sv[high_risk_idx]
-    shap_customer = pd.DataFrame({
-        "feature": X_test.columns,
-        "shap_value": customer_shap
-    }).sort_values("shap_value", key=abs, ascending=True).tail(12)
-
-    colors_shap = [COLORS[1] if v > 0 else COLORS[2]
-                   for v in shap_customer["shap_value"]]
-    axes[1].barh(shap_customer["feature"], shap_customer["shap_value"],
-                 color=colors_shap, alpha=0.85)
-    axes[1].axvline(x=0, color="black", linewidth=0.8)
-    axes[1].set_title(f"SHAP for Highest-Risk Customer\n(Churn prob: {best_probs[high_risk_idx]:.3f})",
-                      fontweight="bold")
-    axes[1].set_xlabel("SHAP value (red=increases churn risk)")
+    axes[1].set_yticks(range(len(top_features)))
+    axes[1].set_yticklabels(top_features, fontsize=9)
+    axes[1].axvline(x=0, color="gray", linestyle="--", alpha=0.5)
+    axes[1].set_title("SHAP Value Distribution (top 10)", fontweight="bold")
+    axes[1].set_xlabel("SHAP value (impact on churn probability)")
 
     plt.tight_layout()
     plt.savefig("charts/15_shap_explainability.png", dpi=150, bbox_inches="tight")
     plt.close()
     print("      Chart 15 saved: SHAP explainability")
-    print("      Chart 15b saved: SHAP beeswarm")
 
 except Exception as e:
-    print(f"      SHAP skipped: {e}")
+    print(f"      SHAP chart skipped: {e}")
 
 
 # ─────────────────────────────────────────────────────────────
-# CLV Impact & Intervention ROI
+# STEP 7: Per-customer output with archetype
 # ─────────────────────────────────────────────────────────────
-print("\n[6/7] Computing business impact & intervention ROI...")
+print("\n[6/7] Building per-customer prediction output...")
 
-df_test = df.iloc[X_test.index].copy() if len(X_test.index) <= len(df) else df.tail(len(X_test)).copy()
-df_test = df_test.reset_index(drop=True)
+archetypes_df = pd.read_csv("data/churn_archetypes.csv", index_col=0)
+survival_df   = pd.read_csv("data/survival_predictions.csv")
 
-df_test["churn_probability"] = best_probs
-df_test["clv_12m"]           = df_test["MonthlyCharges"] * 12
-df_test["clv_at_risk"]       = df_test["churn_probability"] * df_test["clv_12m"]
-df_test["intervention_cost"] = 50  # estimated cost per outreach
-df_test["intervention_roi"]  = (df_test["clv_at_risk"] - df_test["intervention_cost"]) / df_test["intervention_cost"]
+output_df = test_df[["Churn_binary"]].copy()
+output_df["churn_probability"]  = best_probs
+output_df["risk_tier"]          = pd.cut(best_probs,
+                                          bins=[0, 0.3, 0.6, 1.0],
+                                          labels=["Low", "Medium", "High"])
+output_df["monthly_charges"]    = monthly_charges
 
-df_test = df_test.sort_values("churn_probability", ascending=False)
+# Merge survival predictions
+if "churn_prob_30d" in survival_df.columns:
+    output_df["churn_prob_30d"] = survival_df.loc[output_df.index, "churn_prob_30d"].values \
+                                   if len(survival_df) == len(fs) else np.nan
+    output_df["months_remaining"] = survival_df.loc[output_df.index, "expected_months_remaining"].values \
+                                     if len(survival_df) == len(fs) else np.nan
 
-# Business impact at different thresholds
-print(f"\n  {'Threshold':>10} {'Flagged':>8} {'Precision':>10} {'MRR Saved':>12} {'ROI':>8}")
-print("  " + "-" * 55)
-for thresh in [0.3, 0.4, 0.5, 0.6, 0.7]:
-    flagged   = (best_probs >= thresh).sum()
-    if flagged == 0:
-        continue
-    precision = y_test[best_probs >= thresh].mean()
-    mrr_saved = df_test[df_test["churn_probability"] >= thresh]["MonthlyCharges"].sum() * precision
-    roi       = (mrr_saved - flagged * 50) / (flagged * 50) if flagged > 0 else 0
-    print(f"  {thresh:>10.1f} {flagged:>8,} {precision:>10.1%} ${mrr_saved:>10,.0f} {roi:>7.1f}x")
+# Merge archetype
+if len(archetypes_df) > 0:
+    output_df["archetype"] = archetypes_df.reindex(output_df.index)["archetype_name"].values
 
-df_test.to_csv("data/predictions_with_roi.csv", index=False)
-print(f"\n  Saved: data/predictions_with_roi.csv")
+# CLV at risk
+output_df["clv_at_risk_12m"]     = output_df["monthly_charges"] * 12 * output_df["churn_probability"]
+output_df["intervention_priority"]= output_df["clv_at_risk_12m"].rank(ascending=False).astype(int)
 
+output_df.to_csv("data/customer_predictions.csv")
 
-# ─────────────────────────────────────────────────────────────
-# MLflow experiment tracking
-# ─────────────────────────────────────────────────────────────
-print("\n[7/7] Logging to MLflow...")
-try:
-    import mlflow
-    mlflow.set_tracking_uri("mlruns")
-    mlflow.set_experiment("PRISM_churn_prediction")
+print(f"      Saved: data/customer_predictions.csv")
+print(f"\n      Sample — top 5 highest priority customers:")
+top5 = output_df.nsmallest(5, "intervention_priority")[
+    ["churn_probability", "risk_tier", "monthly_charges",
+     "clv_at_risk_12m", "intervention_priority"]
+]
+print(top5.to_string())
 
-    for name, res in results.items():
-        with mlflow.start_run(run_name=name):
-            mlflow.log_param("model_type",   name)
-            mlflow.log_param("train_size",   len(X_train))
-            mlflow.log_param("test_size",    len(X_test))
-            mlflow.log_param("n_features",   X_train.shape[1])
-            mlflow.log_param("split_type",   "temporal")
-            mlflow.log_metric("roc_auc",     res["roc_auc"])
-            mlflow.log_metric("f1_score",    res["f1"])
-            mlflow.log_metric("avg_precision", res["avg_precision"])
-
-    print(f"      {len(results)} runs logged to MLflow")
-    print(f"      View with: mlflow ui")
-
-except Exception as e:
-    print(f"      MLflow skipped: {e}")
-
-# Save best model
-joblib.dump(best_model, "models/best_model.pkl")
-joblib.dump(scaler,     "models/scaler.pkl")
-with open("models/feature_names.json", "w") as f:
-    json.dump(list(X_train.columns), f)
 
 # ─────────────────────────────────────────────────────────────
-# Final summary
+# Save models + results
 # ─────────────────────────────────────────────────────────────
+print("\n[7/7] Saving models and results...")
+
+joblib.dump(xgb_model, "models/xgboost_model.pkl")
+joblib.dump(lgbm,      "models/lightgbm_model.pkl")
+joblib.dump(scaler,    "models/scaler.pkl")
+
+with open("models/model_results.json", "w") as f:
+    json.dump(results, f, indent=2)
+
+# Business impact summary
+high_risk   = output_df[output_df["risk_tier"] == "High"]
+total_mrr   = output_df["monthly_charges"].sum()
+hr_mrr      = high_risk["monthly_charges"].sum()
+top20_count = int(len(output_df) * 0.2)
+top20_mrr_v = output_df.nsmallest(top20_count, "intervention_priority")["monthly_charges"].sum()
+
 print("\n" + "=" * 60)
 print("  Phase 3 Complete — Modeling Pipeline")
 print("=" * 60)
-print(f"\n  Models trained: {len(results)}")
-print(f"\n  {'Model':<25} {'ROC-AUC':>8} {'F1':>8} {'Avg Prec':>10}")
-print("  " + "-" * 55)
-for name, res in sorted(results.items(), key=lambda x: x[1]["roc_auc"], reverse=True):
-    print(f"  {name:<25} {res['roc_auc']:>8.4f} {res['f1']:>8.4f} {res['avg_precision']:>10.4f}")
-
-print(f"\n  Best model: {best_name}")
-print(f"  Split: Temporal (no data leakage)")
-print(f"\n  Files saved:")
-print(f"    models/best_model.pkl")
-print(f"    models/scaler.pkl")
-print(f"    data/predictions_with_roi.csv")
-print(f"\n  Charts saved: 13, 14, 15")
-print(f"\n  Next: python phase4_ab_testing.py")
+print(f"\n  Best model    : {best_model_name}")
+print(f"  ROC-AUC       : {results[best_model_name]['auc']:.4f}")
+print(f"  F1 Score      : {results[best_model_name]['f1']:.4f}")
+print(f"  Precision     : {results[best_model_name]['precision']:.4f}")
+print(f"  Recall        : {results[best_model_name]['recall']:.4f}")
+print(f"\n  Business Impact (test set):")
+print(f"  Total MRR             : ${total_mrr:,.0f}/month")
+print(f"  High-risk MRR         : ${hr_mrr:,.0f}/month")
+print(f"  Top 20% targeting MRR : ${top20_mrr_v:,.0f}/month recoverable")
+print(f"\n  Charts saved  : 13, 14, 15")
+print(f"  Models saved  : models/")
+print(f"  Predictions   : data/customer_predictions.csv")
+print(f"\n  Next: python phase2c_clustering.py (if not done)")
+print(f"  Then: build Streamlit dashboard")
 print("=" * 60)

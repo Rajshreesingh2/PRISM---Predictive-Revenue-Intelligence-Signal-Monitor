@@ -1,0 +1,46 @@
+{
+  "pipeline_run": "2026-03-14T20:57:10.614912",
+  "tasks": {
+    "ingest_data": {
+      "status": "SUCCESS",
+      "elapsed_s": 0.19,
+      "result": "7,043 rows loaded"
+    },
+    "validate_data": {
+      "status": "SUCCESS",
+      "elapsed_s": 0.19,
+      "result": "All 5 checks passed"
+    },
+    "engineer_features": {
+      "status": "SUCCESS",
+      "elapsed_s": 0.07,
+      "result": "40 features, 7,043 rows"
+    },
+    "check_drift": {
+      "status": "SUCCESS",
+      "elapsed_s": 0.03,
+      "result": "Alert level: LOW, drifted features: 0"
+    },
+    "retrain_if_needed": {
+      "status": "SUCCESS",
+      "elapsed_s": 0.25,
+      "result": "Current AUC: 0.8559 \u2014 model retained (AUC > 0.70 threshold)"
+    },
+    "update_predictions": {
+      "status": "SUCCESS",
+      "elapsed_s": 0.22,
+      "result": "1,409 predictions updated, 7 high-risk"
+    },
+    "generate_alerts": {
+      "status": "SUCCESS",
+      "elapsed_s": 0.08,
+      "result": "1 alerts generated"
+    }
+  },
+  "summary": {
+    "total_tasks": 7,
+    "succeeded": 7,
+    "failed": 0,
+    "status": "SUCCESS"
+  }
+}

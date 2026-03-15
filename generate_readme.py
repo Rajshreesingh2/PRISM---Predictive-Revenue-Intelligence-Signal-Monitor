@@ -1,4 +1,8 @@
-# 🔮 PRISM — Predictive Revenue & Intelligence Signal Monitor
+"""
+PRISM v2 — Generate final README.md
+"""
+
+readme = """# 🔮 PRISM — Predictive Revenue & Intelligence Signal Monitor
 
 [![Python](https://img.shields.io/badge/Python-3.11+-blue?style=flat-square&logo=python)](https://python.org)
 [![XGBoost](https://img.shields.io/badge/XGBoost-Optimized-orange?style=flat-square)](https://xgboost.readthedocs.io)
@@ -281,3 +285,10 @@ POST http://localhost:8000/predict
 
 *Built as a DS portfolio project targeting roles at Visa, Google, Amazon, and Mastercard.*
 *This project demonstrates end-to-end ML engineering, not just model training.*
+"""
+
+with open("README.md", "w", encoding="utf-8") as f:
+    f.write(readme)
+
+print("README.md generated successfully")
+print(f"Length: {len(readme.split(chr(10)))} lines")

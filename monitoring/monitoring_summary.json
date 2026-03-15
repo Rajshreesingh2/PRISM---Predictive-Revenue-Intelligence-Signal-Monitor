@@ -1,0 +1,36 @@
+{
+  "generated_at": "2026-03-14T20:57:04.381951",
+  "drift_summary": {
+    "features_checked": 15,
+    "drifted_features": 0,
+    "stable_features": 15,
+    "alert_level": "LOW"
+  },
+  "drifted_features": [],
+  "performance": {
+    "reference": {
+      "roc_auc": 0.858,
+      "f1": 0.6488,
+      "precision": 0.5658,
+      "recall": 0.7603,
+      "n_samples": 4930,
+      "churn_rate": 0.2615
+    },
+    "current": {
+      "roc_auc": 0.8527,
+      "f1": 0.6492,
+      "precision": 0.5872,
+      "recall": 0.7259,
+      "n_samples": 2113,
+      "churn_rate": 0.2745
+    }
+  },
+  "prediction_dist": {
+    "mean_probability": 0.2127,
+    "median_probability": 0.1485,
+    "std_probability": 0.1355,
+    "pct_high_risk": 0.5,
+    "pct_medium_risk": 25.9,
+    "pct_low_risk": 73.6
+  }
+}
