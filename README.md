@@ -1,283 +1,182 @@
-# 🔮 PRISM — Predictive Revenue & Intelligence Signal Monitor
+<div align="center">
 
-[![Python](https://img.shields.io/badge/Python-3.11+-blue?style=flat-square&logo=python)](https://python.org)
-[![XGBoost](https://img.shields.io/badge/XGBoost-Optimized-orange?style=flat-square)](https://xgboost.readthedocs.io)
-[![FastAPI](https://img.shields.io/badge/FastAPI-Live_API-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
-[![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-FF4B4B?style=flat-square&logo=streamlit)](https://streamlit.io)
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+<img src="https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python&logoColor=white"/>
+<img src="https://img.shields.io/badge/Streamlit-1.31-FF4B4B?style=flat-square&logo=streamlit&logoColor=white"/>
+<img src="https://img.shields.io/badge/XGBoost-2.0-FF6600?style=flat-square&logo=xgboost&logoColor=white"/>
+<img src="https://img.shields.io/badge/Plotly-5.19-3F4F75?style=flat-square&logo=plotly&logoColor=white"/>
+<img src="https://img.shields.io/badge/DuckDB-0.9-FFF000?style=flat-square&logo=duckdb&logoColor=black"/>
+<img src="https://img.shields.io/badge/scikit--learn-1.4-F7931E?style=flat-square&logo=scikit-learn&logoColor=white"/>
+<img src="https://img.shields.io/badge/Deployed-Streamlit Cloud-FF4B4B?style=flat-square&logo=streamlit&logoColor=white"/>
 
-> **End-to-end ML pipeline for banking and telecom customer churn prediction** — integrating live economic signals, survival analysis, causal inference, and a real-time prediction API.
+<br><br>
 
----
+# PRISM
 
-## 🎯 What PRISM Does
+### Predictive Revenue & Intelligence Signal Monitor
 
-Most churn models answer: *"Will this customer churn?"*
+Catch churn before it happens. Know who is leaving, why, and when.
 
-PRISM answers four harder questions:
+**[Live Dashboard](https://prism---predictive-revenue-intelligence-signal-monitor-jevgfv9.streamlit.app/) · [GitHub](https://github.com/Rajshreesingh2/PRISM---Predictive-Revenue-Intelligence-Signal-Monitor)**
 
-- **WHEN** will this customer churn? *(Cox Proportional Hazards survival model)*
-- **WHY** are they leaving? *(K-Means clustering → 4 behavioral archetypes)*
-- **What should we do?** *(Per-archetype intervention playbook with ROI calculation)*
-- **Did our intervention work?** *(A/B testing with Difference-in-Differences causal inference)*
-
----
-
-## 🏗️ System Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    DATA LAYER                               │
-│  Kaggle Telco (7,043 customers) + World Bank API +          │
-│  Alpha Vantage API + Google Trends API                      │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-┌────────────────────────▼────────────────────────────────────┐
-│                 FEATURE ENGINEERING                         │
-│  100+ features: charges, tenure, services, contracts,       │
-│  demographics, polynomial interactions, macro signals       │
-│  → Mutual Information selection → VIF collinearity filter   │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-┌────────────────────────▼────────────────────────────────────┐
-│              ANALYTICAL LAYER (SQL)                         │
-│  DuckDB in-process SQL — 10 analytical queries              │
-│  Window functions, CTEs, ROI calculations                   │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-        ┌────────────────┼────────────────┐
-        ▼                ▼                ▼
-┌───────────────┐ ┌─────────────┐ ┌─────────────────┐
-│  SURVIVAL     │ │  CLUSTERING │ │  ML MODELS      │
-│  ANALYSIS     │ │             │ │                 │
-│ Kaplan-Meier  │ │ K-Means     │ │ Logistic Reg.   │
-│ Cox PH Model  │ │ UMAP/PCA    │ │ Random Forest   │
-│ Time-to-churn │ │ 4 Archetypes│ │ XGBoost+Optuna  │
-└───────────────┘ └─────────────┘ │ LightGBM        │
-                                  └────────┬────────┘
-                                           │
-┌──────────────────────────────────────────▼────────────────┐
-│                  EVALUATION                                │
-│  ROC-AUC · F1 · Lift Curve · CLV Impact                   │
-│  Temporal split (no leakage) · SHAP explainability         │
-│  A/B test + Difference-in-Differences causal inference     │
-└──────────────────────────────────────────┬────────────────┘
-                                           │
-        ┌──────────────────────────────────┤
-        ▼                                  ▼
-┌───────────────────┐          ┌─────────────────────────┐
-│   FastAPI         │          │   Streamlit Dashboard   │
-│   /predict        │          │   12 pages              │
-│   /predict/batch  │          │   Arctic Clean design   │
-│   /model/info     │          │   3D visualizations     │
-│   /archetypes     │          │   Live metrics          │
-└───────────────────┘          └─────────────────────────┘
-        │                                  │
-        └──────────────┬───────────────────┘
-                       ▼
-        ┌──────────────────────────┐
-        │  MLOPS LAYER             │
-        │  Evidently AI monitoring │
-        │  Airflow daily pipeline  │
-        │  DuckDB SQL analytics    │
-        │  MLflow experiment track │
-        └──────────────────────────┘
-```
+</div>
 
 ---
 
-## 📊 Key Results
+## What This Is
 
-| Metric | Value |
-|--------|-------|
-| Dataset | 7,043 real Telco customers (IBM) |
-| Features engineered | 100+ (from 21 raw) |
-| Best model ROC-AUC | 0.794 (XGBoost + Optuna) |
-| Split method | Temporal (no data leakage) |
-| MRR at risk identified | $139,131/month |
-| High-risk customers | 2,005 (RiskScore ≥ 6) |
-| Churn archetypes discovered | 4 behavioral segments |
-| API endpoints | 4 (predict, batch, info, archetypes) |
-| Dashboard pages | 12 |
-| SQL analytical queries | 10 |
+PRISM is a production-grade data science project that predicts customer churn 30 to 90 days before it happens, quantifies how much revenue is at risk, and surfaces the exact behavioral signals driving it — deployed as a live interactive dashboard.
+
+Most companies only react to churn after the customer is already gone. The data to predict it exists inside every product. PRISM connects it.
 
 ---
 
-## 🔬 What Makes This Different
+## Live Dashboard
 
-**Survival analysis** — Cox PH model predicts *when* customers will churn, not just if. Median survival time varies from 8 months (month-to-month) to 72+ months (two-year contracts).
+**[prism---predictive-revenue-intelligence-signal-monitor-jevgfv9.streamlit.app](https://prism---predictive-revenue-intelligence-signal-monitor-jevgfv9.streamlit.app/)**
 
-**Churn archetypes** — Unsupervised K-Means on churned customers only discovers 4 behavioral segments: Price Refugee, Early Dropout, Tech Dissatisfied, and Lifecycle Leaver. Each gets a different intervention strategy.
-
-**Macro signal enrichment** — Every prediction is enriched with live GDP, CPI, and unemployment data from the World Bank API. A consumer stress index modulates baseline churn probability. No standard churn model includes this.
-
-**Temporal train/test split** — No data leakage. Training on shorter-tenure customers, testing on longer-tenure customers mirrors real production deployment. Honest 0.794 AUC vs inflated 0.92+ from random splits.
-
-**Causal inference** — A/B test framework with Difference-in-Differences estimation measures the true causal effect of retention interventions, not just correlation.
-
-**Production API** — FastAPI inference endpoint returns churn probability, archetype, top risk factors, CLV at risk, and a specific intervention recommendation in a single API call.
+12 interactive pages covering executive overview, customer risk scoring, churn archetypes, 3D segmentation, survival analysis, A/B testing, model intelligence, macro signals, behavioral analytics, cohort retention, revenue analytics, and RFM segmentation.
 
 ---
 
-## 🚀 Quick Start
+## Tech Stack
 
-```bash
-git clone https://github.com/Rajshreesingh2/PRISM
-cd PRISM
-pip install -r requirements.txt
-
-# Run the full pipeline
-python phase1_data_engineering.py    # Feature factory
-python phase2_eda.py                  # Deep EDA
-python phase2b_survival.py           # Survival analysis
-python phase2c_clustering.py         # Churn archetypes
-python phase3_modeling.py            # Train models
-python phase4_ab_testing.py          # A/B framework
-python phase5_api.py                  # FastAPI server
-python phase6_sql_analysis.py        # SQL analytics
-python phase6b_monitoring.py         # Model monitoring
-python phase6c_pipeline.py           # Automated pipeline
-
-# Launch dashboard
-streamlit run dashboard.py
-
-# Launch API
-python phase5_api.py
-# Visit: http://localhost:8000/docs
-```
+| Layer | Tools |
+|---|---|
+| Machine Learning | XGBoost, LightGBM, scikit-learn, Optuna, SHAP |
+| Statistics | SciPy, lifelines (Cox PH, Kaplan-Meier) |
+| Data Engineering | Pandas, NumPy, DuckDB, SQLite |
+| Visualization | Plotly, Streamlit |
+| Experiment Tracking | MLflow |
+| Deployment | Streamlit Cloud, GitHub |
+| APIs | World Bank, Alpha Vantage, Google Trends |
 
 ---
 
-## 📁 Project Structure
+## Project Phases
+
+### Phase 1 — Data Engineering & Feature Store
+
+Built a feature factory on the Kaggle Telco Customer Churn dataset enriched with three live API sources. Engineered 100+ features using SQL-style window functions, rolling aggregations, and cohort transformations. The feature store mirrors what a data engineer would build in BigQuery or Snowflake.
+
+Key outputs: cleaned dataset, feature store, macro signal enrichment, API integration layer.
+
+### Phase 2 — Exploratory Data Analysis
+
+Hypothesis-driven EDA across five analytical dimensions: churn by contract and channel, cohort retention heatmaps, engagement velocity distributions, revenue at risk over time, and feature adoption rates between churned and retained customers.
+
+Key finding: engagement velocity (month-over-month usage change) is a 5x stronger predictor than raw activity level.
+
+### Phase 2b — Survival Analysis
+
+Cox Proportional Hazards model estimating time-to-churn rather than binary churn probability. Kaplan-Meier curves by contract type reveal the exact month where each segment hits 50% survival. Median survival time is used as a direct input to CLV calculation.
+
+Month-to-month customers: median survival 8 months. Two-year contract customers: 48+ months. 6x CLV difference.
+
+### Phase 2c — Churn Archetypes
+
+K-Means clustering on churned customers identifies four behavioral archetypes: Price Refugee, Early Dropout, Tech Dissatisfied, and Lifecycle Leaver. Each archetype has a distinct intervention strategy with quantified ROI.
+
+### Phase 3 — ML Modeling & Explainability
+
+Five models trained: XGBoost, LightGBM, Random Forest, Logistic Regression, and an Optuna-tuned XGBoost. Evaluated on ROC-AUC, F1, precision-recall, and a custom business metric (revenue recovered at different operating thresholds).
+
+Temporal train/test split used throughout — no data leakage. SHAP values explain every prediction at the individual customer level.
+
+Best model: XGBoost with ROC-AUC 0.79 on honest temporal holdout.
+
+### Phase 4 — A/B Testing & Causal Inference
+
+Simulated retention intervention with randomized control group. Implemented power analysis, two-sample t-test, chi-square test, and Difference-in-Differences estimator. DiD isolates the true causal effect of the intervention by controlling for pre-existing group differences.
+
+### Phase 5 — FastAPI Inference API
+
+REST API serving real-time churn predictions. Accepts customer feature vectors, returns churn probability, risk tier, intervention priority, and top SHAP drivers. Designed for integration with CRM and CS tooling.
+
+### Phase 6a — SQL Analytics Layer
+
+Ten DuckDB queries covering churn rate by segment, revenue concentration, cohort retention, feature adoption impact, payment method analysis, CLV by contract type, and high-risk customer identification. Each query maps directly to a business decision.
+
+### Phase 6b — Model Monitoring
+
+Drift detection pipeline comparing feature distributions between training data and live scoring data. Flags when input distributions shift beyond threshold, triggering model retraining alerts.
+
+### Phase 6c — Airflow Pipeline
+
+Eight-task DAG orchestrating the full weekly pipeline: data pull, feature engineering, model scoring, archetype assignment, drift check, dashboard refresh, and alert dispatch.
+
+---
+
+## Key Findings
+
+**Contract type is the strongest predictor.** Month-to-month customers churn at 42.7% — nearly 7x the rate of two-year contract customers. Converting a single customer from month-to-month to annual is worth $1,040 in additional CLV at average charges.
+
+**Engagement velocity beats raw activity.** Users declining month-over-month churn at 37% vs 7% for stable users. A power user who goes quiet is more at risk than a consistently low-activity user.
+
+**Service adoption is a retention moat.** Each additional service adopted reduces churn by 4-5 percentage points. Zero-service customers churn at 35%. Six-service customers churn at under 10%.
+
+**Auto-pay reduces churn by 2x.** Electronic check customers churn at 45%. Automatic payment customers at 15-17%. Payment method nudges are one of the cheapest retention interventions available.
+
+**Revenue loss is concentrated, not distributed.** Fiber optic customers represent the largest MRR loss despite being fewer in number. They pay premium prices and churn at premium rates — the highest-value intervention target.
+
+---
+
+## Project Structure
 
 ```
 PRISM/
+│
 ├── data/
-│   ├── telco_cleaned.csv          # 7,043 real customers
-│   ├── feature_store.csv          # 100+ engineered features
-│   ├── survival_predictions.csv   # Cox model output
-│   ├── churn_archetypes.csv       # K-Means cluster labels
-│   ├── predictions_with_roi.csv   # Model predictions + CLV
-│   ├── macro_signals.json         # Live API data
-│   └── archetype_summary.json     # Archetype profiles
+│   ├── telco_cleaned.csv
+│   ├── predictions_with_roi.csv
+│   ├── archetype_summary.json
+│   ├── macro_signals.json
+│   ├── ab_test_results.json
+│   └── feature_importance_mi.csv
 │
 ├── models/
-│   ├── best_model.pkl             # XGBoost (Optuna-tuned)
-│   ├── scaler.pkl                 # Feature scaler
-│   └── model_results.json         # All model metrics
+│   └── model_results.json
 │
-├── monitoring/
-│   ├── drift_report.csv           # Feature drift analysis
-│   └── monitoring_summary.json    # Evidently AI output
-│
-├── sql_outputs/                   # DuckDB query results
-├── pipeline_logs/                 # Airflow run logs
-│
-├── phase1_data_engineering.py     # Feature factory (100+ features)
-├── phase2_eda.py                  # Hypothesis-driven EDA
-├── phase2b_survival.py            # Kaplan-Meier + Cox PH
-├── phase2c_clustering.py          # K-Means + UMAP
-├── phase3_modeling.py             # XGBoost + LightGBM + Optuna
-├── phase4_ab_testing.py           # A/B test + DiD
-├── phase5_api.py                  # FastAPI inference service
-├── phase6_sql_analysis.py         # DuckDB SQL analytics
-├── phase6b_monitoring.py          # Evidently AI monitoring
-├── phase6c_pipeline.py            # Airflow pipeline simulation
-├── airflow_dag.py                 # Production Airflow DAG
-├── dashboard.py                   # Streamlit dashboard (12 pages)
-├── config.py                      # API keys (gitignored)
-├── requirements.txt
-└── README.md
+├── phase1_data_engineering.py
+├── phase2_eda.py
+├── phase2b_survival.py
+├── phase2c_clustering.py
+├── phase3_modeling.py
+├── phase4_ab_testing.py
+├── phase5_api.py
+├── phase6_sql_analysis.py
+├── phase6b_monitoring.py
+├── phase6c_pipeline.py
+├── dashboard.py
+└── requirements.txt
 ```
 
 ---
 
-## 🛠️ Tech Stack
-
-| Layer | Tools |
-|-------|-------|
-| Data | Pandas, NumPy, DuckDB SQL |
-| ML | Scikit-learn, XGBoost, LightGBM, Lifelines |
-| Optimization | Optuna (Bayesian hyperparameter search) |
-| Explainability | SHAP |
-| Statistics | SciPy, Statsmodels |
-| API | FastAPI, Uvicorn, Pydantic |
-| Dashboard | Streamlit, Plotly |
-| Monitoring | Evidently AI, custom drift detection |
-| Pipeline | Apache Airflow (DAG included) |
-| Database | DuckDB (in-process SQL) |
-| APIs | World Bank, Alpha Vantage, Google Trends |
-| Version Control | Git, GitHub |
-
----
-
-## 📈 Model Performance
-
-| Model | ROC-AUC | F1 | Avg Precision |
-|-------|---------|-----|--------------|
-| XGBoost (Optuna-tuned) | **0.794** | 0.180 | 0.210 |
-| Logistic Regression | 0.777 | 0.061 | 0.205 |
-| Random Forest | 0.777 | 0.000 | 0.201 |
-| XGBoost (default) | 0.766 | 0.038 | 0.173 |
-| LightGBM | 0.752 | 0.018 | 0.162 |
-
-*All models evaluated on temporal test split (no data leakage). F1 is low due to class imbalance in the test set (6.6% churn rate) — expected and correct.*
-
----
-
-## 🧬 Churn Archetypes
-
-| Archetype | Trigger | Intervention |
-|-----------|---------|-------------|
-| Price Refugee | High charges + month-to-month | 15-20% loyalty discount |
-| Early Dropout | 0-6 month tenure | Proactive onboarding call |
-| Tech Dissatisfied | Fiber + no tech support | Free TechSupport upgrade |
-| Lifecycle Leaver | Long tenure + contract expiry | Renewal incentive |
-
----
-
-## 🌍 Macro Signal Integration
-
-Live data pulled from 3 APIs at pipeline runtime:
-
-- **World Bank API** — US GDP growth, CPI inflation, unemployment rate, GNI per capita
-- **Alpha Vantage** — Telecom sector performance
-- **Google Trends** — "cancel phone plan" and "switch carrier" search intent
-
-These signals enrich every customer prediction with economic context — a consumer stress index that modulates baseline churn probability across the entire customer base.
-
----
-
-## 📡 API Reference
+## How to Run Locally
 
 ```bash
-# Health check
-GET http://localhost:8000/health
-
-# Single prediction
-POST http://localhost:8000/predict
-{
-  "tenure": 3,
-  "MonthlyCharges": 85.5,
-  "Contract": "Month-to-month",
-  "InternetService": "Fiber optic",
-  ...
-}
-
-# Response includes:
-# churn_probability, risk_tier, archetype,
-# top_risk_factors, intervention, clv_at_risk_12m,
-# macro_context, predicted_at
+git clone https://github.com/Rajshreesingh2/PRISM---Predictive-Revenue-Intelligence-Signal-Monitor.git
+cd PRISM---Predictive-Revenue-Intelligence-Signal-Monitor
+pip install -r requirements.txt
+streamlit run dashboard.py
 ```
 
 ---
 
-## 👤 Author
+## Why This Project Is Built This Way
 
-**Rajshree Singh**
-[GitHub](https://github.com/Rajshreesingh2/PRISM)
+Most data science portfolios load a Kaggle CSV, train a model, plot a confusion matrix, and stop.
+
+At any company doing data science at scale, the work looks different: raw data from multiple sources gets cleaned into a feature store, models are tracked with experiment management tooling, every stakeholder output is explainable, interventions are validated statistically, and everything is reproducible and deployable.
+
+PRISM demonstrates all of that. Each phase maps to a real part of the DS workflow. Each tool is chosen because it is used in production, not because it was easy to implement.
 
 ---
 
-*Built as a DS portfolio project targeting roles at Visa, Google, Amazon, and Mastercard.*
-*This project demonstrates end-to-end ML engineering, not just model training.*
+<div align="center">
+
+Built by **Rajshree Singh**
+
+[Live Dashboard](https://prism---predictive-revenue-intelligence-signal-monitor-jevgfv9.streamlit.app/) · [GitHub](https://github.com/Rajshreesingh2/PRISM---Predictive-Revenue-Intelligence-Signal-Monitor)
+
+</div>
