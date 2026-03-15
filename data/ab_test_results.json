@@ -1,0 +1,19 @@
+{
+  "experiment_design": {
+    "control_n": 186,
+    "treatment_n": 186,
+    "intervention_effect": 0.15
+  },
+  "results": {
+    "control_churn_rate": 0.4086,
+    "treatment_churn_rate": 0.3065,
+    "absolute_reduction": 0.1022,
+    "relative_reduction": 0.25,
+    "mrr_saved_monthly": 914.5,
+    "mrr_saved_annual": 10974.0,
+    "p_value_ztest": 0.0398,
+    "p_value_chi2": 0.0515,
+    "significant": true,
+    "did_estimate": -0.0414
+  }
+}

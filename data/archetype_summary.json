@@ -1,0 +1,18 @@
+{
+  "Price Refugee": {
+    "count": 1674,
+    "pct_of_churned": 89.6,
+    "avg_monthly_charges": 72.6,
+    "avg_tenure": 14.1,
+    "mrr_at_risk": 121534.1,
+    "reason": "High charges, low service use, month-to-month contract"
+  },
+  "Lifecycle Leaver": {
+    "count": 195,
+    "pct_of_churned": 10.4,
+    "avg_monthly_charges": 90.24,
+    "avg_tenure": 51.4,
+    "mrr_at_risk": 17596.75,
+    "reason": "Long tenure, contract expiry, lifestyle change trigger"
+  }
+}

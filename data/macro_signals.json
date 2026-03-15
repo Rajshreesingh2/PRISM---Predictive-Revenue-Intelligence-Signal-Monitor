@@ -1,0 +1,12 @@
+{
+  "macro_gdp_growth": 2.793,
+  "macro_inflation": 2.95,
+  "macro_unemployment": 4.198,
+  "macro_gni_per_capita": 83490,
+  "trend_churn_intent": 21.26,
+  "trend_switch_carrier": 60.41,
+  "trend_churn_velocity": 8.75,
+  "macro_telecom_sector": 0.0,
+  "macro_stress_index": 4.355,
+  "macro_consumer_pressure": 12.384100000000002
+}
