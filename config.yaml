@@ -1,0 +1,44 @@
+# PRISM Configuration
+
+data:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  export_dir: data/export
+  sample_size: 7043
+
+features:
+  numeric_features:
+    - MonthlyCharges
+    - TotalCharges
+    - tenure
+  categorical_features:
+    - gender
+    - InternetService
+    - Contract
+    - PaymentMethod
+
+ml:
+  test_size: 0.2
+  random_state: 42
+  models:
+    - logistic_regression
+    - random_forest
+    - xgboost
+    - lightgbm
+
+analytics:
+  enable_eda: true
+  enable_cohort_analysis: true
+  enable_survival_analysis: true
+  enable_segmentation: true
+  enable_sql_queries: true
+
+export:
+  excel_enabled: true
+  tableau_enabled: true
+  formats: ['csv', 'parquet']
+
+logging:
+  level: INFO
+  format: '[%(levelname)s] %(asctime)s - %(name)s - %(message)s'
+  log_dir: logs

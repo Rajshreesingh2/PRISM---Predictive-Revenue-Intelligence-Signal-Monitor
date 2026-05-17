@@ -1,6 +1,4 @@
-"""
-Data loader module for PRISM
-"""
+"""Data loader module for PRISM"""
 
 import logging
 import pandas as pd

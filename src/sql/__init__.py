@@ -1,0 +1,1 @@
+"""SQL analytics package"""

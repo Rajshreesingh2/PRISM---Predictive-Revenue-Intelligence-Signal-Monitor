@@ -1,96 +1,65 @@
-"""
-Tableau data preparation
-"""
+"""Tableau data preparation module for PRISM"""
 
 import logging
 import pandas as pd
+from pathlib import Path
+
 
 logger = logging.getLogger(__name__)
 
 
-class TableauDataPreparer:
+class TableauPrep:
     """Prepare data for Tableau"""
     
     def __init__(self, config):
+        """Initialize Tableau prep"""
         self.config = config
     
-    def prepare_customers_table(self, df: pd.DataFrame, predictions: pd.DataFrame) -> pd.DataFrame:
-        """Prepare customer dimension table"""
-        logger.info("Preparing customers table...")
+    def prepare_data(self, df, predictions):
+        """Prepare all Tableau data sources"""
+        logger.info("Preparing Tableau data sources...")
         
-        # Select key columns
-        cols = ['customerID', 'gender', 'SeniorCitizen', 'Partner', 'Dependents', 
-               'tenure', 'Contract', 'InternetService', 'MonthlyCharges', 'Churn']
-        cols = [col for col in cols if col in df.columns]
+        output_dir = self.config.data_dir / 'export'
+        output_dir.mkdir(parents=True, exist_ok=True)
         
-        customers = df[cols].copy()
+        # Data source 1: Customers with risk scores
+        customers_df = df[['customerID', 'gender', 'SeniorCitizen', 'Contract', 'InternetService']].copy()
+        customers_df['churn_probability'] = predictions
+        customers_df['risk_level'] = pd.cut(predictions, bins=[0, 0.3, 0.6, 1.0], labels=['Low', 'Medium', 'High'])
+        customers_df.to_csv(output_dir / 'tableau_customers.csv', index=False)
+        logger.info("  ✓ Customers data source created")
         
-        # Join predictions
-        if 'customerID' in predictions.columns and 'churn_probability' in predictions.columns:
-            customers = customers.merge(
-                predictions[['customerID', 'churn_probability', 'churn_risk_tier']],
-                on='customerID',
-                how='left'
-            )
+        # Data source 2: Services usage
+        services_cols = ['OnlineSecurity', 'OnlineBackup', 'DeviceProtection', 'TechSupport', 'StreamingTV', 'StreamingMovies']
+        available_services = [col for col in services_cols if col in df.columns]
         
-        logger.info(f"✅ Customers table: {len(customers)} records")
+        if available_services:
+            services_df = df[['customerID', 'Contract'] + available_services].copy()
+            services_df.to_csv(output_dir / 'tableau_services.csv', index=False)
+            logger.info("  ✓ Services data source created")
         
-        return customers
-    
-    def prepare_services_table(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Prepare services dimension table"""
-        logger.info("Preparing services table...")
+        # Data source 3: Cohort analysis
+        cohorts_df = df[['customerID', 'tenure', 'MonthlyCharges', 'Churn', 'Contract']].copy()
+        cohorts_df['tenure_cohort'] = pd.cut(df['tenure'], bins=[0, 6, 12, 24, 72], labels=['0-6m', '6-12m', '12-24m', '24m+'])
+        cohorts_df.to_csv(output_dir / 'tableau_cohorts.csv', index=False)
+        logger.info("  ✓ Cohorts data source created")
         
-        service_cols = ['OnlineSecurity', 'OnlineBackup', 'DeviceProtection', 
-                       'TechSupport', 'StreamingTV', 'StreamingMovies']
-        service_cols = [col for col in service_cols if col in df.columns]
-        
-        services = df[['customerID'] + service_cols].copy()
-        
-        # Melt
-        services = services.melt(
-            id_vars=['customerID'],
-            var_name='service_type',
-            value_name='adopted'
-        )
-        
-        logger.info(f"✅ Services table: {len(services)} records")
-        
-        return services
-    
-    def prepare_cohorts_table(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Prepare cohort analysis table"""
-        logger.info("Preparing cohorts table...")
-        
-        df_cohort = df.copy()
-        df_cohort['cohort'] = pd.cut(df_cohort['tenure'], bins=12)
-        
-        cohorts = df_cohort.groupby('cohort').agg({
+        # Data source 4: Segment performance
+        segments_df = df.groupby('Contract').agg({
             'customerID': 'count',
-            'Churn': ['sum', 'mean'],
-            'MonthlyCharges': 'mean'
-        }).reset_index()
-        
-        cohorts.columns = ['cohort', 'size', 'churned', 'churn_rate', 'avg_monthly_charges']
-        
-        logger.info(f"✅ Cohorts table: {len(cohorts)} records")
-        
-        return cohorts
-    
-    def prepare_segments_table(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Prepare segment metrics table"""
-        logger.info("Preparing segments table...")
-        
-        segments = df.groupby('Contract').agg({
-            'customerID': 'count',
-            'Churn': ['sum', 'mean'],
+            'Churn': 'mean',
             'MonthlyCharges': 'mean',
             'tenure': 'mean'
         }).reset_index()
+        segments_df.columns = ['Contract', 'total_customers', 'churn_rate', 'avg_monthly_charges', 'avg_tenure']
+        segments_df.to_csv(output_dir / 'tableau_segments.csv', index=False)
+        logger.info("  ✓ Segments data source created")
         
-        segments.columns = ['contract_type', 'customers', 'churned', 'churn_rate', 
-                          'avg_monthly_charges', 'avg_tenure']
+        logger.info("✅ Tableau data preparation complete")
         
-        logger.info(f"✅ Segments table: {len(segments)} records")
-        
-        return segments
+        return {
+            'customers': output_dir / 'tableau_customers.csv',
+            'services': output_dir / 'tableau_services.csv',
+            'cohorts': output_dir / 'tableau_cohorts.csv',
+            'segments': output_dir / 'tableau_segments.csv'
+        }

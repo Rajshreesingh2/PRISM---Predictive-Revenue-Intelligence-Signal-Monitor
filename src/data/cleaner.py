@@ -1,6 +1,4 @@
-"""
-Data cleaner module for PRISM
-"""
+"""Data cleaner module for PRISM"""
 
 import logging
 import pandas as pd
