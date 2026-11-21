@@ -201,7 +201,7 @@ with st.sidebar:
     st.markdown("""<div style='font-size:0.75rem;color:#9fa8da;line-height:2'>
         <b style='color:#c5cae9'>By</b> Rajshree Singh<br>
         <b style='color:#c5cae9'>Stack</b> Logistic Reg. · XGBoost · Cox PH · K-Means<br>
-        <b style='color:#c5cae9'>Data</b> Kaggle + 3 Live APIs<br>
+        <b style='color:#c5cae9'>Data</b> IBM Telco (public sample)<br>
         <a href='https://github.com/Rajshreesingh2/PRISM---Predictive-Revenue-Intelligence-Signal-Monitor'
         style='color:#90caf9'>GitHub →</a>
     </div>""", unsafe_allow_html=True)
@@ -227,7 +227,7 @@ def sec(title):
 # ════════════════════════════════════════════════════════════
 if "Executive" in page:
     st.markdown('<div class="page-title">📊 Executive Overview</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-sub">Real-time churn intelligence platform — powered by ML, survival analysis & causal inference</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-sub">Churn analysis on the IBM Telco dataset — machine learning, survival analysis and a simulated A/B test</div>', unsafe_allow_html=True)
 
     if telco is not None:
         churned = telco[telco["Churn_binary"]==1]
@@ -253,9 +253,9 @@ if "Executive" in page:
                 text=grp["Rate"].apply(lambda x: f"<b>{x:.1f}%</b>"), textposition="outside"
             ))
             fig.update_layout(**pl("Churn by Contract Type", 320, yaxis=dict(range=[0,55],gridcolor="#e8eaf6")))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
             insight("blue","What this means",
-                "Month-to-month customers churn at 42.7% — nearly 7x the rate of two-year contract customers. Contract type is the single strongest predictor in the entire dataset.")
+                "Month-to-month customers churn at 42.7%, about 15x the rate of two-year contract customers (2.8%). Contract type is one of the strongest predictors in this dataset.")
 
         with c2:
             igrp = telco[telco["Churn_binary"]==1].groupby("InternetService")["MonthlyCharges"].sum().reset_index()
@@ -266,7 +266,7 @@ if "Executive" in page:
             fig2.add_annotation(text=f"<b>${igrp['MonthlyCharges'].sum():,.0f}</b><br><span style='font-size:10px'>MRR lost</span>",
                 x=0.5, y=0.5, showarrow=False, font=dict(size=13,color="#1a237e"))
             fig2.update_layout(**pl("MRR Lost by Service", 320))
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, width="stretch")
             insight("red","What this means",
                 "Fiber optic customers represent the largest share of lost MRR. They pay more per month AND churn more — the premium segment is your highest financial risk.")
 
@@ -281,9 +281,9 @@ if "Executive" in page:
                 text=tgrp["Rate"].apply(lambda x: f"<b>{x:.1f}%</b>"), textposition="outside"
             ))
             fig3.update_layout(**pl("Churn by Tenure", 320, yaxis=dict(range=[0,65],gridcolor="#e8eaf6")))
-            st.plotly_chart(fig3, use_container_width=True)
+            st.plotly_chart(fig3, width="stretch")
             insight("amber","What this means",
-                "New customers (0-6 months) churn at 52.9% — more than half leave before month 7. After 2 years, churn drops below 10%.")
+                "Customers in their first 6 months churn at 52.9%. The rate falls steadily with tenure and is below 10% only after 4 years (9.5%).")
 
         sec("🧠 AI Insight Engine")
         i1,i2,i3 = st.columns(3)
@@ -340,7 +340,7 @@ elif "Risk" in page:
         if "churn_probability" in show_df: show_df["churn_probability"] = show_df["churn_probability"].apply(lambda x: f"{x:.1%}")
         if "monthly_charges"   in show_df: show_df["monthly_charges"]   = show_df["monthly_charges"].apply(lambda x: f"${x:.0f}")
         if "clv_at_risk_12m"   in show_df: show_df["clv_at_risk_12m"]   = show_df["clv_at_risk_12m"].apply(lambda x: f"${x:,.0f}")
-        st.dataframe(show_df, use_container_width=True, height=380)
+        st.dataframe(show_df, width="stretch", height=380)
 
         sec("📊 Risk Distribution")
         c1,c2 = st.columns(2)
@@ -355,7 +355,7 @@ elif "Risk" in page:
             else:
                 fig.add_trace(go.Histogram(x=preds["churn_probability"], marker_color="#3f51b5", nbinsx=30))
                 fig.update_layout(**pl("Churn Probability Distribution", 320))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
             insight("blue","What this means",
                 "Most customers cluster at low risk (<30%) with a long tail of high-risk customers. The goal is to intervene with the high-probability tail before they actually churn.")
 
@@ -367,7 +367,7 @@ elif "Risk" in page:
             ))
             fig2.update_layout(**pl("Churn Probability vs Monthly Charges", 320,
                 xaxis_title="Churn Probability", yaxis_title="Monthly Charges ($)"))
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, width="stretch")
             insight("amber","What this means",
                 "High-charge customers with high churn probability are your most valuable intervention targets — they have the highest CLV at risk.")
     else:
@@ -378,7 +378,7 @@ elif "Risk" in page:
 # ════════════════════════════════════════════════════════════
 elif "Archetypes" in page:
     st.markdown('<div class="page-title">🧬 Churn Archetypes</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-sub">K-Means clustering on churned customers reveals WHY they leave — 4 behavioral archetypes with distinct intervention strategies</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-sub">K-Means clustering on churned customers finds 2 groups with different profiles. The group names and suggested actions are labels written by the author, not measured findings</div>', unsafe_allow_html=True)
 
     if arch:
         cols = st.columns(len(arch))
@@ -404,7 +404,7 @@ elif "Archetypes" in page:
                 text=adf["MRR"].apply(lambda x: f"<b>${x:,.0f}</b>"), textposition="outside"
             ))
             fig.update_layout(**pl("Monthly Revenue at Risk by Archetype", 380))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         with c2:
             fig2 = go.Figure(go.Pie(
                 labels=adf["Archetype"], values=adf["N"], hole=0.55,
@@ -413,7 +413,7 @@ elif "Archetypes" in page:
             fig2.add_annotation(text=f"<b>{adf['N'].sum():,}</b><br>churned", x=0.5, y=0.5,
                 showarrow=False, font=dict(size=13,color="#1a237e"))
             fig2.update_layout(**pl("Churn Composition by Archetype", 380))
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, width="stretch")
 
         sec("🎯 Intervention Playbook")
         strategies = {
@@ -465,7 +465,7 @@ elif "3D" in page:
             title=dict(text="<b>3D Customer Churn Landscape</b>", font=dict(color="#1a237e",size=14)),
             paper_bgcolor="rgba(255,255,255,0.85)", height=580, margin=dict(l=0,r=0,t=50,b=0)
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
         sec("🌡️ Churn Heatmap — Contract × Internet Service")
         pivot = telco.groupby(["Contract","InternetService"])["Churn_binary"].mean().unstack()*100
@@ -476,9 +476,9 @@ elif "3D" in page:
             textfont=dict(color="#1a237e",size=12), colorbar=dict(title="Churn Rate %")
         ))
         fig3.update_layout(**pl("Churn Rate Heatmap: Contract × Internet Service", 320))
-        st.plotly_chart(fig3, use_container_width=True)
+        st.plotly_chart(fig3, width="stretch")
         insight("red","The hotspot revealed",
-            "Month-to-month Fiber Optic customers churn at 52%+ — the highest risk combination. This is where $1 of intervention generates the highest return.")
+            "Month-to-month fiber optic customers churn at 54.6% (2,128 customers), the highest-risk combination in this dataset.")
     else:
         st.warning("telco_cleaned.csv not found.")
 
@@ -487,7 +487,7 @@ elif "3D" in page:
 # ════════════════════════════════════════════════════════════
 elif "Survival" in page:
     st.markdown('<div class="page-title">⏱ Survival Analysis</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-sub">Cox Proportional Hazards model — the gold standard for time-to-event prediction</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-sub">Cox Proportional Hazards model — a standard method for time-to-event analysis</div>', unsafe_allow_html=True)
 
     if telco is not None:
         try:
@@ -517,7 +517,7 @@ elif "Survival" in page:
                 fig.update_layout(**pl("Survival Probability by Contract Type", 420,
                     xaxis_title="Tenure (months)", yaxis_title="Survival Probability",
                     yaxis=dict(range=[0,1.05])))
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
             with c2:
                 for color,title,body in [
                     ("red","Month-to-month drops fast","50% of customers churn by month 15. Needs immediate intervention."),
@@ -547,10 +547,10 @@ elif "Survival" in page:
                 fig3.update_layout(**pl(f"Median Survival by {col_name}", 320,
                     yaxis=dict(range=[0,85], title="Months until 50% churned")))
                 with sc2[ax_i]:
-                    st.plotly_chart(fig3, use_container_width=True)
+                    st.plotly_chart(fig3, width="stretch")
 
             insight("purple","Why this matters",
-                "Month-to-month customers surviving ~8 months at $65/month = $520 CLV. Two-year contract customers surviving 48+ months = $3,120+ CLV. This 6x difference justifies spending significantly more to acquire long-term contract customers.")
+                "Illustration with round numbers: a customer who stays 8 months at $65/month is worth $520, and one who stays 48 months is worth $3,120 (6x). That gap is why contract length matters.")
         except ImportError:
             st.error("lifelines not installed. Add it to requirements.txt")
     else:
@@ -589,7 +589,7 @@ elif "A/B" in page:
             ))
             fig.update_layout(**pl("Churn Rate: Control vs Treatment", 340,
                 yaxis=dict(range=[0,65], title="Churn Rate (%)")))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         with c2:
             sig1 = ("✅ Significant","#e8f5e9","#2e7d32") if p1<0.05 else ("⚠️ Underpowered","#fff8e1","#f57f17")
             sig2 = ("✅ Significant","#e8f5e9","#2e7d32") if p2<0.05 else ("⚠️ Need n=1,000+","#fff8e1","#f57f17")
@@ -617,7 +617,7 @@ elif "A/B" in page:
             </table></div>""", unsafe_allow_html=True)
 
         insight("purple","What is Difference-in-Differences?",
-            "DiD compares the CHANGE in churn rate for treatment vs control. It controls for pre-existing differences — this is the causal inference method used by Google, Airbnb, and Visa.")
+            "DiD compares the CHANGE in churn rate for treatment vs control. It controls for pre-existing differences — it is a standard causal inference method. Here it is applied to simulated data.")
         insight("green","How to read this page",
             "No real customers received an offer. Churn outcomes were randomly drawn from the model's probabilities, with the treatment group given an assumed 15% reduction. A real experiment would measure the effect instead of assuming it.")
     else:
@@ -628,18 +628,25 @@ elif "A/B" in page:
 # ════════════════════════════════════════════════════════════
 elif "Model" in page:
     st.markdown('<div class="page-title">🤖 Model Intelligence</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-sub">5 models trained, Optuna-tuned, SHAP-explained — honest temporal evaluation with no data leakage</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-sub">4 models compared, XGBoost tuned with Optuna and explained with SHAP — scored on 1,409 held-out customers with a stratified split</div>', unsafe_allow_html=True)
 
     if mr:
         mdf = pd.DataFrame(mr).T.reset_index()
-        mdf.columns = ["Model","ROC-AUC","F1","Precision","Recall","Avg-PR"]
-        best = mdf.loc[mdf["ROC-AUC"].idxmax()]
+        mdf = mdf.rename(columns={"index":"Model","auc":"ROC-AUC","f1":"F1","precision":"Precision",
+                                  "recall":"Recall","avg_pr":"Avg-PR"})
+        mdf = mdf[["Model","ROC-AUC","F1","Precision","Recall","Avg-PR"]]
+        # the deployed model is the one chosen by cross-validation on training data
+        try:
+            best_name = json.load(open(os.path.join(MODELS,"evaluation_meta.json")))["best_model"]
+        except Exception:
+            best_name = mdf.loc[mdf["ROC-AUC"].idxmax(),"Model"]
+        best = mdf[mdf["Model"]==best_name].iloc[0]
 
         c1,c2,c3,c4 = st.columns(4)
-        with c1: kpi(f"{best['ROC-AUC']:.4f}","Best ROC-AUC",str(best["Model"]))
-        with c2: kpi(f"{best['F1']:.4f}","Best F1 Score","temporal split","kpi-val-green")
-        with c3: kpi(f"{len(mdf)}","Models Trained","XGB+LGB+RF+LR+tuned","kpi-val-amber")
-        with c4: kpi("Temporal","Split Method","no data leakage","kpi-val-purple")
+        with c1: kpi(f"{best['ROC-AUC']:.4f}","Test ROC-AUC",str(best["Model"])+" (deployed)")
+        with c2: kpi(f"{best['F1']:.4f}","F1 Score (deployed model)","held-out test set","kpi-val-green")
+        with c3: kpi(f"{len(mdf)}","Models Compared","LR + RF + XGBoost + LightGBM","kpi-val-amber")
+        with c4: kpi("Stratified","Split Method","same churn rate in train and test","kpi-val-purple")
 
         sec("📊 Model Comparison")
         metric_colors = {"ROC-AUC":"#3f51b5","F1":"#00897b","Precision":"#f9a825","Recall":"#e53935","Avg-PR":"#7b1fa2"}
@@ -649,7 +656,7 @@ elif "Model" in page:
                 marker=dict(color=color, opacity=0.87, line=dict(width=0))))
         fig.update_layout(**pl("All Models × All Metrics", 380, barmode="group",
             yaxis=dict(range=[0,1], title="Score")))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
         if mi_df is not None:
             sec("🧠 Feature Importance")
@@ -662,16 +669,16 @@ elif "Model" in page:
             ))
             fig2.update_layout(**pl("Top 15 Features by Mutual Information Score", 450,
                 xaxis_title="MI Score"))
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, width="stretch")
 
-        sec("⚖️ Temporal vs Random Split")
+        sec("⚖️ How the data was split")
         c1,c2 = st.columns(2)
         with c1:
-            insight("red","❌ Random Split (what most portfolios do)",
-                "train_test_split(random_state=42) leaks future data. AUC inflates to 0.92+. Fails immediately in production.")
+            insight("red","❌ Sorting by tenure (a pitfall)",
+                "Sorting customers by tenure puts new, high-churn customers in training (31.5% churn) and loyal ones in the test set (6.6% churn). The model is then scored on a different kind of customer than it learned from.")
         with c2:
-            insight("green","✅ Temporal Split (what PRISM does)",
-                "Sort by tenure → train on short-tenure, test on long-tenure. Honest 0.79 AUC. Reflects true production performance.")
+            insight("green","✅ Stratified split (what PRISM does)",
+                "A random 80/20 split that keeps the churn rate the same in train and test (26.5% each). The best model is chosen by cross-validation on training data, and the test set is used once for the final score.")
     else:
         st.warning("models/model_results.json not found.")
 
@@ -680,7 +687,7 @@ elif "Model" in page:
 # ════════════════════════════════════════════════════════════
 elif "Macro" in page:
     st.markdown('<div class="page-title">🌍 Macro Economic Signals</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-sub">Live World Bank + Alpha Vantage data enriching every customer prediction with economic context</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-sub">Country-level indicators saved with the data. Each is one number copied onto every customer, so it cannot tell customers apart and the model does not use it</div>', unsafe_allow_html=True)
 
     if macro:
         gdp   = macro.get("macro_gdp_growth",0)
@@ -714,14 +721,14 @@ elif "Macro" in page:
             ))
             fig.update_layout(paper_bgcolor="rgba(255,255,255,0.85)", height=300,
                 font=dict(family="Inter,sans-serif"))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         with c2:
             insight("blue","Consumer Stress Index",
-                "Stress = Inflation + Unemployment − GDP. Above 8: telecom churn increases 8-12% industry-wide. Current reading is relatively benign.")
+                "Stress = Inflation + Unemployment − GDP. A simple derived index shown for context. It is not estimated from this data and is not used by the model.")
             insight("amber","Google Trends Signals",
-                f"'Cancel phone plan' intent score: <b>{ci:.1f}/100</b>. 'Switch carrier' intent: <b>{sw:.1f}/100</b>. Leading indicators that appear weeks before actual churn.")
-            insight("green","Why this differentiates PRISM",
-                "No other portfolio project combines macroeconomic signals with individual customer predictions. This is what a senior DS at Visa or Mastercard would build.")
+                f"'Cancel phone plan' intent score: <b>{ci:.1f}/100</b>. 'Switch carrier' intent: <b>{sw:.1f}/100</b>. US-wide search-interest scores, the same for every customer, shown for context only.")
+            insight("green","Why these are not in the model",
+                "Every customer gets the same value, so these columns carry no information for telling customers apart. A useful version would need data that varies by customer or by month, such as regional data and a dated customer history.")
 
         sec("📋 All Macro Signals")
         mdf2 = pd.DataFrame([
@@ -730,10 +737,10 @@ elif "Macro" in page:
              "Source": "World Bank" if any(x in k for x in ["gdp","inflation","unemployment","gni"])
                        else "Alpha Vantage" if "telecom" in k
                        else "Google Trends" if "trend" in k else "Derived",
-             "In Model": "✅ Yes"}
+             "In Model": "No (same value for every customer)"}
             for k,v in macro.items()
         ])
-        st.dataframe(mdf2, use_container_width=True)
+        st.dataframe(mdf2, width="stretch")
     else:
         st.warning("macro_signals.json not found in data/ folder.")
 
@@ -765,9 +772,9 @@ elif "Behavioral" in page:
                 text=svc_df["Without Service"].apply(lambda x: f"{x:.1f}%"), textposition="outside"))
             fig.update_layout(**pl("Churn Rate: Adopted vs Not Adopted per Service", 400, barmode="group",
                 yaxis=dict(range=[0,50], title="Churn Rate (%)")))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
             insight("green","What this reveals",
-                "Every service adopted reduces churn probability. OnlineSecurity and TechSupport show the strongest protective effect. Cross-selling is not just a revenue play — it's your strongest retention lever.")
+                "Customers with OnlineSecurity or TechSupport churn at about half the rate of those without (15% vs 31%). Streaming add-ons show the opposite pattern (30% vs 24%). These are correlations, not proof that selling a service lowers churn.")
 
         sec("👥 Customer Profile: Churned vs Retained")
         c1,c2 = st.columns(2)
@@ -785,9 +792,9 @@ elif "Behavioral" in page:
                 text=retained_means.values.round(1), textposition="outside"))
             fig2.update_layout(**pl("Demographics: Churned vs Retained (%)", 360, barmode="group",
                 yaxis=dict(range=[0,100], title="% of segment")))
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, width="stretch")
             insight("amber","Key demographic pattern",
-                "Churned customers are less likely to have partners or dependents — customers with families have higher switching costs.")
+                "Churned customers are less likely to have partners (20% vs 33% churn) or dependents (16% vs 31%).")
 
         with c2:
             pay_churn = telco.groupby("PaymentMethod")["Churn_binary"].agg(["mean","count"]).reset_index()
@@ -802,9 +809,9 @@ elif "Behavioral" in page:
             ))
             fig3.update_layout(**pl("Churn Rate by Payment Method", 360,
                 xaxis=dict(range=[0,50], title="Churn Rate (%)")))
-            st.plotly_chart(fig3, use_container_width=True)
-            insight("red","Auto-pay is a retention moat",
-                "Electronic check customers churn at 45%. Auto-pay customers churn at just 15-17%. Nudging customers to switch to auto-pay is one of the cheapest retention interventions.")
+            st.plotly_chart(fig3, width="stretch")
+            insight("red","Auto-pay customers churn far less",
+                "Electronic check customers churn at 45%; auto-pay customers churn at 15-17%. This is a correlation. Whether nudging customers to auto-pay would reduce churn needs a real experiment.")
     else:
         st.warning("telco_cleaned.csv not found.")
 
@@ -837,7 +844,7 @@ elif "Cohort" in page:
             colorbar=dict(title="Retention %"), zmid=75
         ))
         fig.update_layout(**pl("Customer Retention Rate by Tenure Cohort", 200))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
         sec("📊 Cohort Size and Churn Breakdown")
         c1,c2 = st.columns(2)
@@ -851,7 +858,7 @@ elif "Cohort" in page:
                 marker=dict(color="#e53935",opacity=0.85,line=dict(width=0))))
             fig2.update_layout(**pl("Cohort Size: Retained vs Churned", 360,
                 barmode="stack", yaxis=dict(title="Customers")))
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, width="stretch")
         with c2:
             fig3 = go.Figure(go.Scatter(
                 x=cohort_data["cohort"].astype(str), y=cohort_data["retained_pct"],
@@ -864,17 +871,17 @@ elif "Cohort" in page:
             ))
             fig3.update_layout(**pl("Retention Rate Curve by Cohort", 360,
                 yaxis=dict(range=[0,110], title="Retention Rate (%)")))
-            st.plotly_chart(fig3, use_container_width=True)
+            st.plotly_chart(fig3, width="stretch")
 
         insight("amber","The retention story",
-            "Longer-tenure cohorts retain dramatically better. The 0-6 month window is the danger zone — this is where most preventable churn occurs and where retention investment has the highest ROI.")
+            "Longer-tenure cohorts retain much better, and the 0-6 month window has the highest churn rate (52.9%). Where retention spending would pay off most has not been measured here.")
 
         sec("📋 Cohort Summary Table")
         summary = cohort_data.copy()
         summary.columns = ["Tenure Cohort","Total Customers","Churned","Retention %","Churn %"]
         summary["Retention %"] = summary["Retention %"].round(1).astype(str) + "%"
         summary["Churn %"]     = summary["Churn %"].round(1).astype(str) + "%"
-        st.dataframe(summary, use_container_width=True)
+        st.dataframe(summary, width="stretch")
     else:
         st.warning("telco_cleaned.csv not found.")
 
@@ -909,7 +916,7 @@ elif "Revenue" in page:
                 marker_color="#e53935", opacity=0.75, nbinsx=30))
             fig.update_layout(**pl("Monthly Charges Distribution", 360, barmode="overlay",
                 xaxis_title="Monthly Charges ($)", yaxis=dict(title="Customers")))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
             insight("red","The high-value paradox",
                 "Churned customers tend to have HIGHER monthly charges. Revenue loss from churn is disproportionate to the number of customers lost.")
         with c2:
@@ -928,10 +935,10 @@ elif "Revenue" in page:
             ))
             fig4.update_layout(**pl("Churn Rate by Monthly Charge Band", 360,
                 yaxis=dict(range=[0,50], title="Churn Rate (%)")))
-            st.plotly_chart(fig4, use_container_width=True)
+            st.plotly_chart(fig4, width="stretch")
 
         insight("purple","Revenue concentration risk",
-            f"Total annual revenue at risk: ${churned_mrr*12:,.0f}. Losing a high-charge customer is 3-4x more damaging — this is why CLV-weighted intervention priority matters.")
+            f"Total annual revenue at risk: ${churned_mrr*12:,.0f}. A top-quartile customer pays about 4.5x what a bottom-quartile customer pays, which is why value-weighted priority matters.")
     else:
         st.warning("telco_cleaned.csv not found.")
 
@@ -998,7 +1005,7 @@ elif "Segment" in page:
             ))
             fig.update_layout(**pl("Churn Rate by RFM Segment", 360,
                 yaxis=dict(range=[0,55], title="Churn Rate (%)")))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         with c2:
             fig2 = go.Figure(go.Pie(
                 labels=seg_summary["rfm_segment"], values=seg_summary["total_mrr"], hole=0.55,
@@ -1008,7 +1015,7 @@ elif "Segment" in page:
             fig2.add_annotation(text=f"<b>${seg_summary['total_mrr'].sum():,.0f}</b><br>total MRR",
                 x=0.5, y=0.5, showarrow=False, font=dict(size=12,color="#1a237e"))
             fig2.update_layout(**pl("MRR Contribution by Segment", 360))
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, width="stretch")
 
         sec("🔍 Interactive Segment Explorer")
         selected_seg = st.selectbox("Select a segment to explore", sorted(telco["rfm_segment"].unique()))
@@ -1031,7 +1038,7 @@ elif "Segment" in page:
                 text=contract_dist["Count"], textposition="outside"
             ))
             fig3.update_layout(**pl(f"{selected_seg}: Contract Breakdown", 320))
-            st.plotly_chart(fig3, use_container_width=True)
+            st.plotly_chart(fig3, width="stretch")
         with c2:
             internet_dist = seg_data["InternetService"].value_counts().reset_index()
             internet_dist.columns = ["Service","Count"]
@@ -1040,7 +1047,7 @@ elif "Segment" in page:
                 marker=dict(colors=["#3f51b5","#e53935","#00897b"],line=dict(color="#fff",width=2))
             ))
             fig4.update_layout(**pl(f"{selected_seg}: Internet Service", 320))
-            st.plotly_chart(fig4, use_container_width=True)
+            st.plotly_chart(fig4, width="stretch")
 
         insight(
             "red" if seg_data["Churn_binary"].mean()>0.3 else "green",
