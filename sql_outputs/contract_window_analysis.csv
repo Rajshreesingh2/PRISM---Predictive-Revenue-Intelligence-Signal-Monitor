@@ -1,0 +1,4 @@
+Contract,total,churned,churn_rate,avg_mrr,total_mrr,mrr_share_pct,risk_share_pct
+Month-to-month,3875,1655.0,42.71,66.4,257294.15,56.41,86.86
+One year,1473,166.0,11.27,65.05,95816.6,21.01,10.15
+Two year,1695,48.0,2.83,60.77,103005.85,22.58,2.99

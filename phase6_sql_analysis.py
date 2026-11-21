@@ -239,9 +239,9 @@ print("  Q9: Fiber optic customer risk deep dive")
 q9 = con.execute("""
     SELECT
         InternetService,
-        CASE WHEN TechSupport='Yes' OR TechSupport=1 THEN 'Has TechSupport'
+        CASE WHEN TechSupport = 1 THEN 'Has TechSupport'
              ELSE 'No TechSupport' END              AS tech_support_status,
-        CASE WHEN OnlineSecurity='Yes' OR OnlineSecurity=1 THEN 'Secured'
+        CASE WHEN OnlineSecurity = 1 THEN 'Secured'
              ELSE 'Unsecured' END                   AS security_status,
         COUNT(*)                                    AS customers,
         ROUND(AVG(Churn_binary)*100, 2)             AS churn_rate_pct,

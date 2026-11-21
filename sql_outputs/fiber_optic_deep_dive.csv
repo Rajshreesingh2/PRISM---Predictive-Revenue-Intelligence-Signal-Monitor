@@ -1,0 +1,5 @@
+InternetService,tech_support_status,security_status,customers,churn_rate_pct,avg_monthly_charges
+Fiber optic,No TechSupport,Unsecured,1765,55.01,86.1
+Fiber optic,Has TechSupport,Unsecured,492,29.07,97.71
+Fiber optic,No TechSupport,Secured,465,27.96,93.98
+Fiber optic,Has TechSupport,Secured,374,14.17,105.73

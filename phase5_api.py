@@ -54,9 +54,10 @@ FEATURES   = None
 MACRO      = {}
 ARCH_SUM   = {}
 MODEL_META = {}
+EVAL_META  = {}
 
 def load_artifacts():
-    global MODEL, SCALER, FEATURES, MACRO, ARCH_SUM, MODEL_META
+    global MODEL, SCALER, FEATURES, MACRO, ARCH_SUM, MODEL_META, EVAL_META
     try:
         MODEL  = joblib.load("models/best_model.pkl")
         SCALER = joblib.load("models/scaler.pkl")
@@ -65,7 +66,8 @@ def load_artifacts():
         print(f"⚠️  Model not found: {e}")
 
     try:
-        with open("data/selected_features.json") as f:
+        # The exact feature list (and order) the saved model was trained on
+        with open("models/feature_names.json") as f:
             FEATURES = json.load(f)
         print(f"✅ Features loaded: {len(FEATURES)} features")
     except Exception as e:
@@ -86,18 +88,24 @@ def load_artifacts():
     except: pass
 
     try:
+        with open("models/evaluation_meta.json") as f:
+            EVAL_META = json.load(f)
+    except Exception:
+        EVAL_META = {}
+
+    try:
         with open("models/model_results.json") as f:
             results = json.load(f)
-        best = max(results, key=lambda x: results[x].get("auc",0))
+        best = EVAL_META.get("best_model") or max(results, key=lambda x: results[x].get("auc",0))
         MODEL_META = {
             "model_type": best,
             "roc_auc": results[best].get("auc", 0),
             "f1_score": results[best].get("f1", 0),
-            "split_method": "temporal",
-            "training_samples": 5634,
-            "test_samples": 1409,
+            "split_method": EVAL_META.get("split_method", "unknown"),
+            "training_samples": EVAL_META.get("n_train"),
+            "test_samples": EVAL_META.get("n_test"),
             "features_count": len(FEATURES) if FEATURES else 0,
-            "trained_at": "2026-03-14"
+            "trained_at": EVAL_META.get("trained_at", "see models/evaluation_meta.json")
         }
     except: pass
 
@@ -174,7 +182,7 @@ class BatchRequest(BaseModel):
 # Feature engineering (mirrors Phase 1)
 # ─────────────────────────────────────────────────────────────
 def engineer_features(customer: CustomerFeatures) -> pd.DataFrame:
-    d = customer.dict()
+    d = customer.model_dump()
 
     # Charge features
     d["charge_per_month"]        = d["TotalCharges"] / (d["tenure"] + 1)

@@ -181,7 +181,7 @@ with st.sidebar:
         "🧬 Churn Archetypes",
         "🌐 3D Segmentation",
         "⏱ Survival Analysis",
-        "🧪 A/B Experiment",
+        "🧪 A/B Experiment (simulated)",
         "🤖 Model Intelligence",
         "🌍 Macro Signals",
         "📱 Behavioral Analytics",
@@ -200,7 +200,7 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("""<div style='font-size:0.75rem;color:#9fa8da;line-height:2'>
         <b style='color:#c5cae9'>By</b> Rajshree Singh<br>
-        <b style='color:#c5cae9'>Stack</b> XGBoost · Cox PH · K-Means<br>
+        <b style='color:#c5cae9'>Stack</b> Logistic Reg. · XGBoost · Cox PH · K-Means<br>
         <b style='color:#c5cae9'>Data</b> Kaggle + 3 Live APIs<br>
         <a href='https://github.com/Rajshreesingh2/PRISM---Predictive-Revenue-Intelligence-Signal-Monitor'
         style='color:#90caf9'>GitHub →</a>
@@ -314,7 +314,7 @@ if "Executive" in page:
 # ════════════════════════════════════════════════════════════
 elif "Risk" in page:
     st.markdown('<div class="page-title">🎯 Customer Risk Intelligence</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-sub">Every customer scored by XGBoost model — ranked by churn probability and intervention ROI</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-sub">Held-out test customers scored by the best model — ranked by churn probability and intervention ROI</div>', unsafe_allow_html=True)
 
     if preds is not None and telco is not None:
         threshold = st.slider("Min churn probability to show", 0.1, 0.9, 0.3, 0.05)
@@ -560,13 +560,13 @@ elif "Survival" in page:
 # PAGE 6 — A/B Experiment
 # ════════════════════════════════════════════════════════════
 elif "A/B" in page:
-    st.markdown('<div class="page-title">🧪 A/B Experiment Framework</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-sub">Causal inference with Difference-in-Differences — proving that interventions actually work</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-title">🧪 A/B Experiment Framework (Simulation)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-sub">SIMULATED experiment: outcomes are generated from an ASSUMED 15% churn reduction, so this shows how a test would be analysed, not that an offer works</div>', unsafe_allow_html=True)
 
     if ab:
         cr  = ab.get("control_churn_rate",0)
         tr  = ab.get("treatment_churn_rate",0)
-        mrr = ab.get("mrr_saved_monthly",0)
+        mrr = ab.get("simulated_mrr_saved_monthly",0)
         did = ab.get("did_estimate",0)
         p1  = ab.get("p_value_chi2",1.0)
         p2  = ab.get("p_value_ztest",1.0)
@@ -575,8 +575,8 @@ elif "A/B" in page:
         c1,c2,c3,c4 = st.columns(4)
         with c1: kpi(f"{cr*100:.1f}%","Control Churn","no intervention","kpi-val-red")
         with c2: kpi(f"{tr*100:.1f}%","Treatment Churn",f"-{(cr-tr)*100:.1f}pp reduction","kpi-val-green")
-        with c3: kpi(f"${mrr:,.0f}","MRR Saved/Month","from this intervention","kpi-val-amber")
-        with c4: kpi(f"{did*100:.1f}pp","DiD Causal Effect","true causal estimate","kpi-val-purple")
+        with c3: kpi(f"${mrr:,.0f}","Simulated MRR Saved/Month","assumed effect, not measured","kpi-val-amber")
+        with c4: kpi(f"{did*100:.1f}pp","Simulated DiD Effect","illustrative only","kpi-val-purple")
 
         sec("📊 Experiment Results")
         c1,c2 = st.columns(2)
@@ -618,8 +618,8 @@ elif "A/B" in page:
 
         insight("purple","What is Difference-in-Differences?",
             "DiD compares the CHANGE in churn rate for treatment vs control. It controls for pre-existing differences — this is the causal inference method used by Google, Airbnb, and Visa.")
-        insight("green","Why this is production-grade thinking",
-            "Most DS projects show 'model accuracy = 87%'. PRISM goes further: we designed an experiment, randomized a control group, ran statistical tests, and estimated the causal effect. This is the full DS workflow.")
+        insight("green","How to read this page",
+            "No real customers received an offer. Churn outcomes were randomly drawn from the model's probabilities, with the treatment group given an assumed 15% reduction. A real experiment would measure the effect instead of assuming it.")
     else:
         st.warning("ab_test_results.json not found in data/ folder.")
 

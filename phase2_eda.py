@@ -116,11 +116,12 @@ axes[0].legend()
 # Total charges by churn
 axes[1].boxplot(
     [retained["TotalCharges"].dropna(), churned["TotalCharges"].dropna()],
-    labels=["Retained", "Churned"],
     patch_artist=True,
     boxprops=dict(facecolor=COLORS[0], alpha=0.6),
     medianprops=dict(color="black", linewidth=2)
 )
+axes[1].set_xticks([1, 2])
+axes[1].set_xticklabels(["Retained", "Churned"])   # works on old and new matplotlib
 axes[1].set_title("Total Charges Distribution", fontweight="bold")
 axes[1].set_ylabel("Total Charges ($)")
 
@@ -137,7 +138,7 @@ fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 fig.suptitle("PRISM — Service Adoption & Risk Score", fontsize=14, fontweight="bold")
 
 # Service adoption score
-adoption_churn = df.groupby("ServiceAdoptionScore")["Churn_binary"].mean() * 100
+adoption_churn = df.groupby("service_adoption_score")["Churn_binary"].mean() * 100
 axes[0].bar(adoption_churn.index, adoption_churn.values,
             color=[COLORS[1] if v > 30 else COLORS[0] for v in adoption_churn.values],
             width=0.6, edgecolor="white")
@@ -149,12 +150,12 @@ axes[0].set_ylabel("Churn Rate (%)")
 axes[0].set_xticks(range(len(adoption_churn)))
 
 # Risk score distribution
-axes[1].hist(retained["RiskScore"], bins=9, alpha=0.7,
+axes[1].hist(retained["base_risk_score"], bins=9, alpha=0.7,
              color=COLORS[0], label="Retained", density=True)
-axes[1].hist(churned["RiskScore"], bins=9, alpha=0.7,
+axes[1].hist(churned["base_risk_score"], bins=9, alpha=0.7,
              color=COLORS[1], label="Churned", density=True)
 
-ks_stat2, ks_p2 = stats.ks_2samp(retained["RiskScore"], churned["RiskScore"])
+ks_stat2, ks_p2 = stats.ks_2samp(retained["base_risk_score"], churned["base_risk_score"])
 axes[1].set_title(f"Risk Score Distribution\nKS stat={ks_stat2:.3f}, p={ks_p2:.2e}",
                   fontweight="bold")
 axes[1].set_xlabel("Composite Risk Score")
@@ -272,9 +273,9 @@ print("  PRISM — Hypothesis Test Results")
 print("=" * 60)
 
 # H1: Month-to-month customers churn significantly more
-h1_mtm  = df[df["MonthToMonth"]==1]["Churn_binary"].mean()
-h1_long = df[df["MonthToMonth"]==0]["Churn_binary"].mean()
-ct1 = pd.crosstab(df["MonthToMonth"], df["Churn_binary"])
+h1_mtm  = df[df["is_month_to_month"]==1]["Churn_binary"].mean()
+h1_long = df[df["is_month_to_month"]==0]["Churn_binary"].mean()
+ct1 = pd.crosstab(df["is_month_to_month"], df["Churn_binary"])
 chi1, p1, _, _ = stats.chi2_contingency(ct1)
 print(f"\n  H1: Month-to-month customers churn more")
 print(f"      Month-to-month churn: {h1_mtm*100:.1f}%")
@@ -282,9 +283,9 @@ print(f"      Long-term churn:      {h1_long*100:.1f}%")
 print(f"      Chi2={chi1:.1f}, p={p1:.2e} → {'CONFIRMED' if p1 < 0.05 else 'NOT confirmed'}")
 
 # H2: Single-service users churn more than multi-service
-h2_single = df[df["SingleServiceUser"]==1]["Churn_binary"].mean()
-h2_multi  = df[df["SingleServiceUser"]==0]["Churn_binary"].mean()
-ct2 = pd.crosstab(df["SingleServiceUser"], df["Churn_binary"])
+h2_single = df[df["is_single_service"]==1]["Churn_binary"].mean()
+h2_multi  = df[df["is_single_service"]==0]["Churn_binary"].mean()
+ct2 = pd.crosstab(df["is_single_service"], df["Churn_binary"])
 chi2_stat, p2, _, _ = stats.chi2_contingency(ct2)
 print(f"\n  H2: Single-service users churn more")
 print(f"      Single-service churn: {h2_single*100:.1f}%")
@@ -302,9 +303,9 @@ print(f"      DSL churn:         {h3_dsl*100:.1f}%")
 print(f"      Chi2={chi3:.1f}, p={p3:.2e} → {'CONFIRMED' if p3 < 0.05 else 'NOT confirmed'}")
 
 # H4: High monthly charges customers churn more
-high_charge = df[df["HighCharger"]==1]["Churn_binary"].mean()
-low_charge  = df[df["HighCharger"]==0]["Churn_binary"].mean()
-ct4 = pd.crosstab(df["HighCharger"], df["Churn_binary"])
+high_charge = df[df["is_high_charger"]==1]["Churn_binary"].mean()
+low_charge  = df[df["is_high_charger"]==0]["Churn_binary"].mean()
+ct4 = pd.crosstab(df["is_high_charger"], df["Churn_binary"])
 chi4, p4, _, _ = stats.chi2_contingency(ct4)
 print(f"\n  H4: High-charge customers churn more")
 print(f"      High charge churn: {high_charge*100:.1f}%")
@@ -312,8 +313,8 @@ print(f"      Low charge churn:  {low_charge*100:.1f}%")
 print(f"      Chi2={chi4:.1f}, p={p4:.2e} → {'CONFIRMED' if p4 < 0.05 else 'NOT confirmed'}")
 
 # H5: New customers (0-6 months) are highest risk
-new_churn  = df[df["NewCustomer"]==1]["Churn_binary"].mean()
-old_churn  = df[df["NewCustomer"]==0]["Churn_binary"].mean()
+new_churn  = df[df["is_new_customer"]==1]["Churn_binary"].mean()
+old_churn  = df[df["is_new_customer"]==0]["Churn_binary"].mean()
 print(f"\n  H5: New customers (0-6m) are highest churn risk")
 print(f"      New customer churn:  {new_churn*100:.1f}%")
 print(f"      Older customer churn:{old_churn*100:.1f}%")
@@ -322,7 +323,7 @@ print(f"      Difference:          {(new_churn-old_churn)*100:+.1f}pp")
 # Business impact
 total_monthly = df["MonthlyCharges"].sum()
 churned_monthly = churned["MonthlyCharges"].sum()
-high_risk = df[df["RiskScore"] >= 6]
+high_risk = df[df["base_risk_score"] >= 6]
 high_risk_mrr = high_risk["MonthlyCharges"].sum()
 
 print(f"\n" + "=" * 60)
@@ -330,7 +331,7 @@ print(f"  Business Impact Summary")
 print(f"=" * 60)
 print(f"\n  Total MRR:              ${total_monthly:,.0f}/month")
 print(f"  MRR from churned users: ${churned_monthly:,.0f}/month ({churned_monthly/total_monthly*100:.1f}%)")
-print(f"  High-risk customers:    {len(high_risk):,} (RiskScore >= 6)")
+print(f"  High-risk customers:    {len(high_risk):,} (base_risk_score >= 6)")
 print(f"  High-risk MRR:          ${high_risk_mrr:,.0f}/month")
 print(f"\n  6 EDA charts saved to charts/")
 print(f"\n  Next: python phase3_modeling.py")

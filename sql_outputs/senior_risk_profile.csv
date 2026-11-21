@@ -1,0 +1,5 @@
+segment,partner_status,customers,churn_rate_pct,avg_monthly_charges
+Senior,No Partner,569,48.86,76.84
+Senior,Has Partner,573,34.55,82.78
+Non-Senior,No Partner,3072,30.01,59.19
+Non-Senior,Has Partner,2829,16.65,64.74

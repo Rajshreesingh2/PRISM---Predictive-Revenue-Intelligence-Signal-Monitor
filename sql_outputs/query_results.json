@@ -1,0 +1,470 @@
+{
+  "churn_by_segment": [
+    {
+      "Contract": "Month-to-month",
+      "InternetService": "Fiber optic",
+      "total_customers": 2128,
+      "churned": 1162.0,
+      "churn_rate_pct": 54.61,
+      "avg_monthly_charges": 87.02,
+      "total_mrr": 185181.1
+    },
+    {
+      "Contract": "Month-to-month",
+      "InternetService": "DSL",
+      "total_customers": 1223,
+      "churned": 394.0,
+      "churn_rate_pct": 32.22,
+      "avg_monthly_charges": 50.22,
+      "total_mrr": 61418.45
+    },
+    {
+      "Contract": "One year",
+      "InternetService": "Fiber optic",
+      "total_customers": 539,
+      "churned": 104.0,
+      "churn_rate_pct": 19.29,
+      "avg_monthly_charges": 98.78,
+      "total_mrr": 53242.15
+    },
+    {
+      "Contract": "Month-to-month",
+      "InternetService": "No",
+      "total_customers": 524,
+      "churned": 99.0,
+      "churn_rate_pct": 18.89,
+      "avg_monthly_charges": 20.41,
+      "total_mrr": 10694.6
+    },
+    {
+      "Contract": "One year",
+      "InternetService": "DSL",
+      "total_customers": 570,
+      "churned": 53.0,
+      "churn_rate_pct": 9.3,
+      "avg_monthly_charges": 61.4,
+      "total_mrr": 34996.15
+    },
+    {
+      "Contract": "Two year",
+      "InternetService": "Fiber optic",
+      "total_customers": 429,
+      "churned": 31.0,
+      "churn_rate_pct": 7.23,
+      "avg_monthly_charges": 104.57,
+      "total_mrr": 44861.15
+    },
+    {
+      "Contract": "One year",
+      "InternetService": "No",
+      "total_customers": 364,
+      "churned": 9.0,
+      "churn_rate_pct": 2.47,
+      "avg_monthly_charges": 20.82,
+      "total_mrr": 7578.3
+    },
+    {
+      "Contract": "Two year",
+      "InternetService": "DSL",
+      "total_customers": 628,
+      "churned": 12.0,
+      "churn_rate_pct": 1.91,
+      "avg_monthly_charges": 70.46,
+      "total_mrr": 44250.75
+    },
+    {
+      "Contract": "Two year",
+      "InternetService": "No",
+      "total_customers": 638,
+      "churned": 5.0,
+      "churn_rate_pct": 0.78,
+      "avg_monthly_charges": 21.78,
+      "total_mrr": 13893.95
+    }
+  ],
+  "revenue_at_risk_cohort": [
+    {
+      "tenure_cohort": "0-6m",
+      "customers": 1481,
+      "churned": 784.0,
+      "churn_rate_pct": 52.9,
+      "mrr_at_risk": 49896.1,
+      "annual_revenue_at_risk": 598753.2
+    },
+    {
+      "tenure_cohort": "6-12m",
+      "customers": 705,
+      "churned": 253.0,
+      "churn_rate_pct": 35.9,
+      "mrr_at_risk": 19058.15,
+      "annual_revenue_at_risk": 228697.8
+    },
+    {
+      "tenure_cohort": "1-2yr",
+      "customers": 1024,
+      "churned": 294.0,
+      "churn_rate_pct": 28.7,
+      "mrr_at_risk": 23081.65,
+      "annual_revenue_at_risk": 276979.8
+    },
+    {
+      "tenure_cohort": "2-4yr",
+      "customers": 1594,
+      "churned": 325.0,
+      "churn_rate_pct": 20.4,
+      "mrr_at_risk": 27462.5,
+      "annual_revenue_at_risk": 329550.0
+    },
+    {
+      "tenure_cohort": "4+yr",
+      "customers": 2239,
+      "churned": 213.0,
+      "churn_rate_pct": 9.5,
+      "mrr_at_risk": 19632.45,
+      "annual_revenue_at_risk": 235589.4
+    }
+  ],
+  "payment_method_risk": [
+    {
+      "PaymentMethod": "Electronic check",
+      "customers": 2365,
+      "churn_rate_pct": 45.29,
+      "avg_monthly_charges": 76.26,
+      "mrr_lost": 84288.75
+    },
+    {
+      "PaymentMethod": "Mailed check",
+      "customers": 1612,
+      "churn_rate_pct": 19.11,
+      "avg_monthly_charges": 43.92,
+      "mrr_lost": 16803.6
+    },
+    {
+      "PaymentMethod": "Bank transfer (automatic)",
+      "customers": 1544,
+      "churn_rate_pct": 16.71,
+      "avg_monthly_charges": 67.19,
+      "mrr_lost": 20091.9
+    },
+    {
+      "PaymentMethod": "Credit card (automatic)",
+      "customers": 1522,
+      "churn_rate_pct": 15.24,
+      "avg_monthly_charges": 66.51,
+      "mrr_lost": 17946.6
+    }
+  ],
+  "service_adoption_churn": [
+    {
+      "service_adoption_score": 0,
+      "customers": 2219,
+      "churn_rate_pct": 21.41,
+      "avg_monthly_charges": 32.79
+    },
+    {
+      "service_adoption_score": 1,
+      "customers": 966,
+      "churn_rate_pct": 45.76,
+      "avg_monthly_charges": 65.57
+    },
+    {
+      "service_adoption_score": 2,
+      "customers": 1033,
+      "churn_rate_pct": 35.82,
+      "avg_monthly_charges": 72.42
+    },
+    {
+      "service_adoption_score": 3,
+      "customers": 1118,
+      "churn_rate_pct": 27.37,
+      "avg_monthly_charges": 80.11
+    },
+    {
+      "service_adoption_score": 4,
+      "customers": 852,
+      "churn_rate_pct": 22.3,
+      "avg_monthly_charges": 87.77
+    },
+    {
+      "service_adoption_score": 5,
+      "customers": 571,
+      "churn_rate_pct": 12.43,
+      "avg_monthly_charges": 92.18
+    },
+    {
+      "service_adoption_score": 6,
+      "customers": 284,
+      "churn_rate_pct": 5.28,
+      "avg_monthly_charges": 99.37
+    }
+  ],
+  "clv_at_risk_decile": [
+    {
+      "charge_decile": 1,
+      "customers": 705,
+      "churn_rate_pct": 24.68,
+      "avg_monthly_charges": 108.26,
+      "clv_at_risk": 446088.0
+    },
+    {
+      "charge_decile": 2,
+      "customers": 705,
+      "churn_rate_pct": 41.13,
+      "avg_monthly_charges": 98.03,
+      "clv_at_risk": 682351.2
+    },
+    {
+      "charge_decile": 3,
+      "customers": 705,
+      "churn_rate_pct": 34.04,
+      "avg_monthly_charges": 89.82,
+      "clv_at_risk": 517425.6
+    },
+    {
+      "charge_decile": 4,
+      "customers": 704,
+      "churn_rate_pct": 38.07,
+      "avg_monthly_charges": 82.12,
+      "clv_at_risk": 528548.4
+    },
+    {
+      "charge_decile": 5,
+      "customers": 704,
+      "churn_rate_pct": 37.78,
+      "avg_monthly_charges": 74.6,
+      "clv_at_risk": 476524.8
+    },
+    {
+      "charge_decile": 6,
+      "customers": 704,
+      "churn_rate_pct": 21.59,
+      "avg_monthly_charges": 65.29,
+      "clv_at_risk": 245896.8
+    },
+    {
+      "charge_decile": 7,
+      "customers": 704,
+      "churn_rate_pct": 24.72,
+      "avg_monthly_charges": 52.51,
+      "clv_at_risk": 216646.8
+    },
+    {
+      "charge_decile": 8,
+      "customers": 704,
+      "churn_rate_pct": 25.28,
+      "avg_monthly_charges": 35.49,
+      "clv_at_risk": 162303.6
+    },
+    {
+      "charge_decile": 9,
+      "customers": 704,
+      "churn_rate_pct": 9.38,
+      "avg_monthly_charges": 21.73,
+      "clv_at_risk": 34628.4
+    },
+    {
+      "charge_decile": 10,
+      "customers": 704,
+      "churn_rate_pct": 8.66,
+      "avg_monthly_charges": 19.62,
+      "clv_at_risk": 28726.8
+    }
+  ],
+  "contract_window_analysis": [
+    {
+      "Contract": "Month-to-month",
+      "total": 3875,
+      "churned": 1655.0,
+      "churn_rate": 42.71,
+      "avg_mrr": 66.4,
+      "total_mrr": 257294.15,
+      "mrr_share_pct": 56.41,
+      "risk_share_pct": 86.86
+    },
+    {
+      "Contract": "One year",
+      "total": 1473,
+      "churned": 166.0,
+      "churn_rate": 11.27,
+      "avg_mrr": 65.05,
+      "total_mrr": 95816.6,
+      "mrr_share_pct": 21.01,
+      "risk_share_pct": 10.15
+    },
+    {
+      "Contract": "Two year",
+      "total": 1695,
+      "churned": 48.0,
+      "churn_rate": 2.83,
+      "avg_mrr": 60.77,
+      "total_mrr": 103005.85,
+      "mrr_share_pct": 22.58,
+      "risk_share_pct": 2.99
+    }
+  ],
+  "senior_risk_profile": [
+    {
+      "segment": "Senior",
+      "partner_status": "No Partner",
+      "customers": 569,
+      "churn_rate_pct": 48.86,
+      "avg_monthly_charges": 76.84
+    },
+    {
+      "segment": "Senior",
+      "partner_status": "Has Partner",
+      "customers": 573,
+      "churn_rate_pct": 34.55,
+      "avg_monthly_charges": 82.78
+    },
+    {
+      "segment": "Non-Senior",
+      "partner_status": "No Partner",
+      "customers": 3072,
+      "churn_rate_pct": 30.01,
+      "avg_monthly_charges": 59.19
+    },
+    {
+      "segment": "Non-Senior",
+      "partner_status": "Has Partner",
+      "customers": 2829,
+      "churn_rate_pct": 16.65,
+      "avg_monthly_charges": 64.74
+    }
+  ],
+  "cumulative_mrr_loss": [
+    {
+      "tenure": 0,
+      "mrr_lost_at_tenure": 0.0,
+      "cumulative_mrr_lost": 0.0
+    },
+    {
+      "tenure": 1,
+      "mrr_lost_at_tenure": 22115.0,
+      "cumulative_mrr_lost": 22115.0
+    },
+    {
+      "tenure": 2,
+      "mrr_lost_at_tenure": 8108.7,
+      "cumulative_mrr_lost": 30223.7
+    },
+    {
+      "tenure": 3,
+      "mrr_lost_at_tenure": 6205.0,
+      "cumulative_mrr_lost": 36428.7
+    },
+    {
+      "tenure": 4,
+      "mrr_lost_at_tenure": 5862.75,
+      "cumulative_mrr_lost": 42291.45
+    },
+    {
+      "tenure": 5,
+      "mrr_lost_at_tenure": 4561.25,
+      "cumulative_mrr_lost": 46852.7
+    },
+    {
+      "tenure": 6,
+      "mrr_lost_at_tenure": 3043.4,
+      "cumulative_mrr_lost": 49896.1
+    },
+    {
+      "tenure": 7,
+      "mrr_lost_at_tenure": 3833.95,
+      "cumulative_mrr_lost": 53730.05
+    },
+    {
+      "tenure": 8,
+      "mrr_lost_at_tenure": 3182.65,
+      "cumulative_mrr_lost": 56912.7
+    },
+    {
+      "tenure": 9,
+      "mrr_lost_at_tenure": 3234.15,
+      "cumulative_mrr_lost": 60146.85
+    },
+    {
+      "tenure": 10,
+      "mrr_lost_at_tenure": 3607.35,
+      "cumulative_mrr_lost": 63754.2
+    },
+    {
+      "tenure": 11,
+      "mrr_lost_at_tenure": 2268.1,
+      "cumulative_mrr_lost": 66022.3
+    },
+    {
+      "tenure": 12,
+      "mrr_lost_at_tenure": 2931.95,
+      "cumulative_mrr_lost": 68954.25
+    },
+    {
+      "tenure": 13,
+      "mrr_lost_at_tenure": 3034.8,
+      "cumulative_mrr_lost": 71989.05
+    },
+    {
+      "tenure": 14,
+      "mrr_lost_at_tenure": 1981.0,
+      "cumulative_mrr_lost": 73970.05
+    }
+  ],
+  "fiber_optic_deep_dive": [
+    {
+      "InternetService": "Fiber optic",
+      "tech_support_status": "No TechSupport",
+      "security_status": "Unsecured",
+      "customers": 1765,
+      "churn_rate_pct": 55.01,
+      "avg_monthly_charges": 86.1
+    },
+    {
+      "InternetService": "Fiber optic",
+      "tech_support_status": "Has TechSupport",
+      "security_status": "Unsecured",
+      "customers": 492,
+      "churn_rate_pct": 29.07,
+      "avg_monthly_charges": 97.71
+    },
+    {
+      "InternetService": "Fiber optic",
+      "tech_support_status": "No TechSupport",
+      "security_status": "Secured",
+      "customers": 465,
+      "churn_rate_pct": 27.96,
+      "avg_monthly_charges": 93.98
+    },
+    {
+      "InternetService": "Fiber optic",
+      "tech_support_status": "Has TechSupport",
+      "security_status": "Secured",
+      "customers": 374,
+      "churn_rate_pct": 14.17,
+      "avg_monthly_charges": 105.73
+    }
+  ],
+  "intervention_roi": [
+    {
+      "Contract": "Month-to-month",
+      "InternetService": "Fiber optic",
+      "total": 2128,
+      "churn_rate": 54.61,
+      "avg_mrr": 87.02,
+      "mrr_at_risk": 100482.0,
+      "annual_risk": 1205784.0,
+      "cost_15pct_discount": 15072.3,
+      "intervention_roi_x": 6.67
+    },
+    {
+      "Contract": "Month-to-month",
+      "InternetService": "DSL",
+      "total": 1223,
+      "churn_rate": 32.22,
+      "avg_mrr": 50.22,
+      "mrr_at_risk": 18367.25,
+      "annual_risk": 220407.0,
+      "cost_15pct_discount": 2755.09,
+      "intervention_roi_x": 6.67
+    }
+  ]
+}

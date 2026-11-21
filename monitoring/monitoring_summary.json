@@ -1,5 +1,6 @@
 {
-  "generated_at": "2026-03-14T20:57:04.381951",
+  "generated_at": "2026-11-21T13:56:26.565681",
+  "notes": "reference = training rows (seen by the model, so its scores are optimistic); current = held-out test rows. The Telco dataset has no dates, so this demonstrates the monitoring method rather than real production drift.",
   "drift_summary": {
     "features_checked": 15,
     "drifted_features": 0,
@@ -9,28 +10,28 @@
   "drifted_features": [],
   "performance": {
     "reference": {
-      "roc_auc": 0.858,
-      "f1": 0.6488,
-      "precision": 0.5658,
-      "recall": 0.7603,
-      "n_samples": 4930,
-      "churn_rate": 0.2615
+      "roc_auc": 0.8518,
+      "f1": 0.6444,
+      "precision": 0.5824,
+      "recall": 0.7211,
+      "n_samples": 5634,
+      "churn_rate": 0.2654
     },
     "current": {
-      "roc_auc": 0.8527,
-      "f1": 0.6492,
-      "precision": 0.5872,
-      "recall": 0.7259,
-      "n_samples": 2113,
-      "churn_rate": 0.2745
+      "roc_auc": 0.8455,
+      "f1": 0.6278,
+      "precision": 0.5569,
+      "recall": 0.7193,
+      "n_samples": 1409,
+      "churn_rate": 0.2654
     }
   },
   "prediction_dist": {
-    "mean_probability": 0.2127,
-    "median_probability": 0.1485,
-    "std_probability": 0.1355,
-    "pct_high_risk": 0.5,
-    "pct_medium_risk": 25.9,
-    "pct_low_risk": 73.6
+    "mean_probability": 0.4157,
+    "median_probability": 0.3885,
+    "std_probability": 0.3019,
+    "pct_high_risk": 33.29,
+    "pct_medium_risk": 23.07,
+    "pct_low_risk": 43.65
   }
 }

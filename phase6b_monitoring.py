@@ -24,11 +24,14 @@ fs      = pd.read_csv("data/feature_store.csv")
 telco   = pd.read_csv("data/telco_cleaned.csv")
 preds   = pd.read_csv("data/predictions_with_roi.csv").reset_index(drop=True)
 
-# Simulate reference (training) vs current (production) data
-# In production: reference = last month, current = this month
-split   = int(len(fs) * 0.7)
-reference_data = fs.iloc[:split].copy()
-current_data   = fs.iloc[split:].copy()
+# Reference = rows the model was TRAINED on; current = rows it has NEVER seen.
+# The Telco data has no dates, so this is a demonstration of the monitoring
+# method, not real production drift (nothing can drift in a static file).
+fs["tenure"] = telco["tenure"].values      # the model uses tenure as a feature
+with open("data/split_indices.json") as f:
+    _split = json.load(f)
+reference_data = fs.loc[_split["train_index"]].copy()
+current_data   = fs.loc[_split["test_index"]].copy()
 
 print(f"\n  Reference data (training period): {len(reference_data):,} rows")
 print(f"  Current data  (production period): {len(current_data):,} rows")
@@ -103,15 +106,20 @@ if len(drifted) > 0:
 # Model performance monitoring
 # ─────────────────────────────────────────────────────────────
 print("\n" + "─"*50)
-print("  Model performance on reference vs current data...")
+print("  Model performance: train rows (seen) vs held-out test rows (unseen)...")
 
 import joblib
 from sklearn.metrics import roc_auc_score, f1_score, precision_score, recall_score
 
 try:
     model  = joblib.load("models/best_model.pkl")
-    with open("data/selected_features.json") as f:
-        feat_cols = [c for c in json.load(f) if c != "Churn_binary"]
+    with open("models/feature_names.json") as f:
+        feat_cols = json.load(f)
+    # Use the same cut-off that phase3 chose, so every script reports the same metrics
+    with open("models/model_results.json") as f:
+        _res = json.load(f)
+    with open("models/evaluation_meta.json") as f:
+        THRESH = _res[json.load(f)["best_model"]]["threshold"]
 
     perf_results = {}
     for name, dataset in [("reference", reference_data), ("current", current_data)]:
@@ -121,7 +129,7 @@ try:
         if len(y.unique()) < 2:
             continue
         probs = model.predict_proba(X)[:, 1]
-        preds_bin = (probs >= 0.5).astype(int)
+        preds_bin = (probs >= THRESH).astype(int)
         perf_results[name] = {
             "roc_auc"  : round(roc_auc_score(y, probs), 4),
             "f1"       : round(f1_score(y, preds_bin), 4),
@@ -195,6 +203,9 @@ if evidently_available:
 # ─────────────────────────────────────────────────────────────
 monitoring_summary = {
     "generated_at"        : pd.Timestamp.now().isoformat(),
+    "notes": ("reference = training rows (seen by the model, so its scores are optimistic); "
+              "current = held-out test rows. The Telco dataset has no dates, so this "
+              "demonstrates the monitoring method rather than real production drift."),
     "drift_summary": {
         "features_checked": len(drift_df),
         "drifted_features": len(drifted),
@@ -221,5 +232,5 @@ print(f"    monitoring/monitoring_summary.json")
 print(f"    monitoring/drift_report.csv")
 if evidently_available:
     print(f"    monitoring/evidently_report.html")
-print(f"\n  Next: python phase6c_airflow_pipeline.py")
+print(f"\n  Next: python phase6c_pipeline.py")
 print("="*60)

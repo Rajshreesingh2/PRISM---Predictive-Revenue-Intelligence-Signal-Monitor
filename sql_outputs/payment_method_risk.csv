@@ -1,0 +1,5 @@
+PaymentMethod,customers,churn_rate_pct,avg_monthly_charges,mrr_lost
+Electronic check,2365,45.29,76.26,84288.75
+Mailed check,1612,19.11,43.92,16803.6
+Bank transfer (automatic),1544,16.71,67.19,20091.9
+Credit card (automatic),1522,15.24,66.51,17946.6

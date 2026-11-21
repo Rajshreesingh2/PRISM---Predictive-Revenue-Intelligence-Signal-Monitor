@@ -98,29 +98,24 @@ drift_result = task("check_drift", check_drift)
 
 # ── Task 5: Retrain model (conditional) ──────────────────────
 def retrain():
-    fs = pd.read_csv("data/feature_store.csv")
-    with open("data/selected_features.json") as f:
-        feat_cols = [c for c in json.load(f) if c != "Churn_binary" and c in fs.columns]
+    """Check the saved model on held-out test rows (never used for training).
+    The model is only 'retained' here; real retraining would need new data."""
+    fs    = pd.read_csv("data/feature_store.csv")
+    telco = pd.read_csv("data/telco_cleaned.csv")
+    fs["tenure"] = telco["tenure"].values
+    with open("models/feature_names.json") as f:
+        feat_cols = json.load(f)
+    with open("data/split_indices.json") as f:
+        test_idx = json.load(f)["test_index"]
 
-    X = fs[feat_cols].fillna(0)
-    y = fs["Churn_binary"]
+    X_test = fs.loc[test_idx, feat_cols].fillna(0)
+    y_test = fs.loc[test_idx, "Churn_binary"]
 
-    split = int(len(fs) * 0.8)
-    X_train, X_test = X.iloc[:split], X.iloc[split:]
-    y_train, y_test = y.iloc[:split], y.iloc[split:]
-
-    import xgboost as xgb
     model = joblib.load("models/best_model.pkl")
-
-    # Partial refit on recent data (last 20%)
-    recent_X = X.iloc[-int(len(X)*0.3):]
-    recent_y = y.iloc[-int(len(y)*0.3):]
-
-    # Evaluate current model
     probs = model.predict_proba(X_test)[:, 1]
     auc   = roc_auc_score(y_test, probs)
 
-    return f"Current AUC: {auc:.4f} — model retained (AUC > 0.70 threshold)"
+    return f"Held-out AUC: {auc:.4f} — model retained (AUC > 0.70 threshold)"
 
 task("retrain_if_needed", retrain)
 

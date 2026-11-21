@@ -1,19 +1,20 @@
 {
+  "SIMULATED": true,
+  "note": "These outcomes are SIMULATED. Customer churn is drawn at random from the model's probabilities, and the treatment group is given an ASSUMED 15% churn reduction. The p-values and dollar figures show how an A/B test would be analysed; they are not evidence that a retention offer works.",
   "experiment_design": {
-    "control_n": 186,
-    "treatment_n": 186,
-    "intervention_effect": 0.15
+    "control_n": 397,
+    "treatment_n": 397,
+    "assumed_intervention_effect": 0.15
   },
   "results": {
-    "control_churn_rate": 0.4086,
-    "treatment_churn_rate": 0.3065,
-    "absolute_reduction": 0.1022,
-    "relative_reduction": 0.25,
-    "mrr_saved_monthly": 914.5,
-    "mrr_saved_annual": 10974.0,
-    "p_value_ztest": 0.0398,
-    "p_value_chi2": 0.0515,
+    "control_churn_rate": 0.6448,
+    "treatment_churn_rate": 0.4912,
+    "absolute_reduction": 0.1537,
+    "relative_reduction": 0.2383,
+    "simulated_mrr_saved_monthly": 3934.8,
+    "p_value_ztest": 0.0,
+    "p_value_chi2": 0.0,
     "significant": true,
-    "did_estimate": -0.0414
+    "did_estimate": -0.0768
   }
 }

@@ -1,5 +1,5 @@
 """
-PRISM — Airflow DAG
+PRISM â€” Airflow DAG
 Deploy to: $AIRFLOW_HOME/dags/prism_pipeline.py
 """
 from airflow import DAG

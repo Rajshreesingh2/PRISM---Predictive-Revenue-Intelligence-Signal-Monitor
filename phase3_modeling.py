@@ -20,7 +20,10 @@ os.makedirs("models", exist_ok=True)
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import StratifiedKFold, cross_val_score
+from sklearn.model_selection import (StratifiedKFold, cross_val_score,
+                                     cross_val_predict, train_test_split)
+from sklearn.base import clone
+from sklearn.pipeline import Pipeline
 from sklearn.metrics import (roc_auc_score, f1_score, precision_score,
                               recall_score, roc_curve, precision_recall_curve,
                               average_precision_score, confusion_matrix)
@@ -36,6 +39,10 @@ plt.rcParams.update({
     "axes.spines.top": False, "axes.spines.right": False,
     "font.size": 11,
 })
+RANDOM_STATE = 42
+# Business ASSUMPTIONS (not measured from data) used for the ROI columns:
+INTERVENTION_COST = 50     # $ per retention offer
+ASSUMED_SAVE_RATE = 0.15   # share of at-risk customers an offer is assumed to keep
 COLORS = ["#3B8BD4", "#D85A30", "#1D9E75", "#EF9F27", "#7F77DD"]
 
 print("=" * 60)
@@ -44,34 +51,57 @@ print("=" * 60)
 
 
 # ─────────────────────────────────────────────────────────────
-# STEP 1: Load & Temporal Split
+# STEP 1: Load & Stratified Train/Test Split
 # ─────────────────────────────────────────────────────────────
-print("\n[1/7] Loading feature store with temporal split...")
+# WHY stratified random: the Telco data has no dates, so a "time" split is
+# not possible. Sorting by tenure (the old approach) put the loyal, rarely-
+# churning customers in the test set. A stratified split keeps the churn
+# rate the same in train and test, so the test score is a fair grade.
+print("\n[1/7] Loading feature store with stratified split...")
 
-fs = pd.read_csv("data/feature_store.csv")
+fs    = pd.read_csv("data/feature_store.csv")
 telco = pd.read_csv("data/telco_cleaned.csv")
 
-# Add tenure back from telco for temporal split
+# Same row order in both files, so tenure can be added back safely
 fs["tenure"] = telco["tenure"].values
 
-# Temporal split — sort by tenure, 80/20
-fs_sorted = fs.sort_values("tenure").reset_index(drop=True)
-split_idx  = int(len(fs_sorted) * 0.8)
-train_df   = fs_sorted.iloc[:split_idx]
-test_df    = fs_sorted.iloc[split_idx:]
+feature_cols = [c for c in fs.columns if c != "Churn_binary"]
 
-feature_cols = [c for c in fs.columns if c not in ["Churn_binary", "tenure"]]
+# train_test_split keeps each row's ORIGINAL index, which we rely on below
+# to line rows up with telco / survival / archetype files.
+train_df, test_df = train_test_split(
+    fs, test_size=0.2, stratify=fs["Churn_binary"], random_state=RANDOM_STATE
+)
 
 X_train = train_df[feature_cols].fillna(0)
 y_train = train_df["Churn_binary"]
 X_test  = test_df[feature_cols].fillna(0)
 y_test  = test_df["Churn_binary"]
 
-print(f"      Train: {len(X_train):,} customers (temporal 80%)")
-print(f"      Test:  {len(X_test):,} customers (temporal 20%)")
+print(f"      Train: {len(X_train):,} customers (stratified 80%)")
+print(f"      Test:  {len(X_test):,} customers (stratified 20%)")
 print(f"      Features: {len(feature_cols)}")
 print(f"      Train churn rate: {y_train.mean()*100:.1f}%")
 print(f"      Test churn rate:  {y_test.mean()*100:.1f}%")
+
+# Save which rows are the held-out test set so every later script
+# evaluates ONLY on rows the model never trained on.
+with open("data/split_indices.json", "w") as f:
+    json.dump({"random_state": RANDOM_STATE,
+               "train_index": [int(i) for i in train_df.index],
+               "test_index":  [int(i) for i in test_df.index]}, f)
+
+
+def pick_threshold(model, X_tr, y_tr):
+    """Pick the probability cut-off with the best F1 using cross-validated
+    predictions on TRAIN data only (the test set is never used to tune it)."""
+    oof = cross_val_predict(clone(model), X_tr, y_tr,
+                            cv=StratifiedKFold(5, shuffle=True, random_state=RANDOM_STATE),
+                            method="predict_proba")[:, 1]
+    grid = np.arange(0.10, 0.91, 0.01)
+    f1s  = [f1_score(y_tr, oof >= t) for t in grid]
+    return float(round(grid[int(np.argmax(f1s))], 2))
+
 
 scaler  = StandardScaler()
 X_train_sc = scaler.fit_transform(X_train)
@@ -84,10 +114,15 @@ X_test_sc  = scaler.transform(X_test)
 print("\n[2/7] Training models...")
 print("      Logistic Regression (baseline)...")
 
-lr = LogisticRegression(max_iter=1000, random_state=42, class_weight="balanced")
-lr.fit(X_train_sc, y_train)
-lr_probs = lr.predict_proba(X_test_sc)[:, 1]
-lr_preds = (lr_probs >= 0.5).astype(int)
+# Scaling is bundled inside the model (a Pipeline), so the saved model works on
+# raw feature values wherever it is used (API, monitoring, pipeline).
+lr = Pipeline([("scale", StandardScaler()),
+               ("model", LogisticRegression(max_iter=1000, random_state=42,
+                                            class_weight="balanced"))])
+lr.fit(X_train, y_train)
+lr_probs = lr.predict_proba(X_test)[:, 1]
+lr_thr   = pick_threshold(lr, X_train, y_train)
+lr_preds = (lr_probs >= lr_thr).astype(int)
 
 print(f"        ROC-AUC: {roc_auc_score(y_test, lr_probs):.4f}")
 
@@ -101,7 +136,8 @@ rf = RandomForestClassifier(n_estimators=200, max_depth=8, random_state=42,
                              class_weight="balanced", n_jobs=-1)
 rf.fit(X_train, y_train)
 rf_probs = rf.predict_proba(X_test)[:, 1]
-rf_preds = (rf_probs >= 0.5).astype(int)
+rf_thr   = pick_threshold(rf, X_train, y_train)
+rf_preds = (rf_probs >= rf_thr).astype(int)
 
 print(f"        ROC-AUC: {roc_auc_score(y_test, rf_probs):.4f}")
 
@@ -135,7 +171,8 @@ try:
                                  scoring="roc_auc", n_jobs=-1)
         return scores.mean()
 
-    study = optuna.create_study(direction="maximize")
+    study = optuna.create_study(direction="maximize",
+                                sampler=optuna.samplers.TPESampler(seed=RANDOM_STATE))
     study.optimize(xgb_objective, n_trials=50, show_progress_bar=False)
 
     best_xgb_params = study.best_params
@@ -156,7 +193,8 @@ except ImportError:
 xgb_model = xgb.XGBClassifier(**best_xgb_params)
 xgb_model.fit(X_train, y_train)
 xgb_probs = xgb_model.predict_proba(X_test)[:, 1]
-xgb_preds = (xgb_probs >= 0.5).astype(int)
+xgb_thr   = pick_threshold(xgb_model, X_train, y_train)
+xgb_preds = (xgb_probs >= xgb_thr).astype(int)
 print(f"        ROC-AUC (test): {roc_auc_score(y_test, xgb_probs):.4f}")
 
 
@@ -171,7 +209,8 @@ lgbm = lgb.LGBMClassifier(n_estimators=300, max_depth=6, learning_rate=0.05,
                             verbose=-1)
 lgbm.fit(X_train, y_train)
 lgbm_probs = lgbm.predict_proba(X_test)[:, 1]
-lgbm_preds = (lgbm_probs >= 0.5).astype(int)
+lgbm_thr   = pick_threshold(lgbm, X_train, y_train)
+lgbm_preds = (lgbm_probs >= lgbm_thr).astype(int)
 print(f"        ROC-AUC: {roc_auc_score(y_test, lgbm_probs):.4f}")
 
 
@@ -180,6 +219,9 @@ print(f"        ROC-AUC: {roc_auc_score(y_test, lgbm_probs):.4f}")
 # ─────────────────────────────────────────────────────────────
 print("\n[3/7] Comparing models...")
 
+thresholds = {"Logistic Regression": lr_thr, "Random Forest": rf_thr,
+              "XGBoost": xgb_thr, "LightGBM": lgbm_thr}
+
 models = {
     "Logistic Regression": (lr_probs,  lr_preds),
     "Random Forest"      : (rf_probs,  rf_preds),
@@ -187,21 +229,33 @@ models = {
     "LightGBM"           : (lgbm_probs,lgbm_preds),
 }
 
+# Choose the best model using 5-fold cross-validation on the TRAINING data only,
+# so the test set is used once, to report the final score.
+cv_models = {"Logistic Regression": lr, "Random Forest": rf,
+             "XGBoost": xgb_model, "LightGBM": lgbm}
+cv5 = StratifiedKFold(5, shuffle=True, random_state=RANDOM_STATE)
+cv_auc = {n: float(cross_val_score(clone(m), X_train, y_train, cv=cv5,
+                                   scoring="roc_auc", n_jobs=-1).mean())
+          for n, m in cv_models.items()}
+
 results = {}
 print(f"\n  {'Model':<22} {'ROC-AUC':>8} {'F1':>8} {'Precision':>10} {'Recall':>8} {'Avg-PR':>8}")
 print("  " + "-" * 70)
 for name, (probs, preds) in models.items():
     auc  = roc_auc_score(y_test, probs)
     f1   = f1_score(y_test, preds)
-    prec = precision_score(y_test, preds)
+    prec = precision_score(y_test, preds, zero_division=0)
     rec  = recall_score(y_test, preds)
     apr  = average_precision_score(y_test, probs)
-    results[name] = {"auc": auc, "f1": f1, "precision": prec,
-                     "recall": rec, "avg_pr": apr}
-    print(f"  {name:<22} {auc:>8.4f} {f1:>8.4f} {prec:>10.4f} {rec:>8.4f} {apr:>8.4f}")
+    results[name] = {"auc": round(auc, 4), "f1": round(f1, 4),
+                     "precision": round(prec, 4), "recall": round(rec, 4),
+                     "avg_pr": round(apr, 4), "threshold": thresholds[name],
+                     "cv_auc": round(cv_auc[name], 4)}
+    print(f"  {name:<22} {auc:>8.4f} {f1:>8.4f} {prec:>10.4f} {rec:>8.4f} {apr:>8.4f}  (cut-off {thresholds[name]:.2f})")
 
-best_model_name = max(results, key=lambda x: results[x]["auc"])
-print(f"\n  Best model: {best_model_name} (ROC-AUC={results[best_model_name]['auc']:.4f})")
+best_model_name = max(results, key=lambda x: results[x]["cv_auc"])
+print(f"\n  Best model (highest cross-validated AUC on training data): {best_model_name}")
+print(f"  Test ROC-AUC: {results[best_model_name]['auc']:.4f}  (cross-validated: {results[best_model_name]['cv_auc']:.4f})")
 
 best_probs = models[best_model_name][0]
 best_model = {"Logistic Regression": lr, "Random Forest": rf,
@@ -379,6 +433,22 @@ output_df["intervention_priority"]= output_df["clv_at_risk_12m"].rank(ascending=
 
 output_df.to_csv("data/customer_predictions.csv")
 
+# ── Full per-customer file used by the SQL analysis, dashboard, monitoring ──
+# Rows = the held-out TEST customers only (model never saw them in training).
+roi_df = telco.loc[test_df.index].copy()
+roi_df["churn_probability"]  = best_probs
+roi_df["clv_12m"]            = roi_df["MonthlyCharges"] * 12
+roi_df["intervention_cost"]  = INTERVENTION_COST
+# Expected 12-month revenue kept = revenue at risk x assumed save rate.
+# ROI = (kept revenue - cost) / cost.  ASSUMED_SAVE_RATE is an assumption.
+roi_df["intervention_roi"]   = (roi_df["clv_12m"] * roi_df["churn_probability"]
+                                * ASSUMED_SAVE_RATE - INTERVENTION_COST) / INTERVENTION_COST
+roi_df["last_updated"]       = pd.Timestamp.now().isoformat()
+roi_df = roi_df.sort_values("churn_probability", ascending=False)
+roi_df.to_csv("data/predictions_with_roi.csv", index=False)
+print("      Saved: data/predictions_with_roi.csv (held-out test customers)")
+
+
 print(f"      Saved: data/customer_predictions.csv")
 print(f"\n      Sample — top 5 highest priority customers:")
 top5 = output_df.nsmallest(5, "intervention_priority")[
@@ -394,6 +464,22 @@ print(top5.to_string())
 print("\n[7/7] Saving models and results...")
 
 joblib.dump(xgb_model, "models/xgboost_model.pkl")
+joblib.dump(best_model, "models/best_model.pkl")      # used by API, monitoring, pipeline
+with open("models/feature_names.json", "w") as f:
+    json.dump(feature_cols, f, indent=2)
+with open("models/best_params.json", "w") as f:
+    json.dump(best_xgb_params, f, indent=2, default=float)
+with open("models/evaluation_meta.json", "w") as f:
+    json.dump({"split_method": "stratified random 80/20",
+               "random_state": RANDOM_STATE,
+               "n_train": int(len(X_train)), "n_test": int(len(X_test)),
+               "train_churn_rate": round(float(y_train.mean()), 4),
+               "test_churn_rate": round(float(y_test.mean()), 4),
+               "best_model": best_model_name,
+               "threshold_chosen_on": "cross-validated predictions on train data",
+               "model_chosen_by": "5-fold cross-validated AUC on train data",
+               "note": "The test set is used once, to report the final score."},
+              f, indent=2)
 joblib.dump(lgbm,      "models/lightgbm_model.pkl")
 joblib.dump(scaler,    "models/scaler.pkl")
 
@@ -421,7 +507,6 @@ print(f"  High-risk MRR         : ${hr_mrr:,.0f}/month")
 print(f"  Top 20% targeting MRR : ${top20_mrr_v:,.0f}/month recoverable")
 print(f"\n  Charts saved  : 13, 14, 15")
 print(f"  Models saved  : models/")
-print(f"  Predictions   : data/customer_predictions.csv")
-print(f"\n  Next: python phase2c_clustering.py (if not done)")
-print(f"  Then: build Streamlit dashboard")
+print(f"  Predictions   : data/predictions_with_roi.csv")
+print(f"\n  Next: python phase4_ab_testing.py, then streamlit run dashboard.py")
 print("=" * 60)

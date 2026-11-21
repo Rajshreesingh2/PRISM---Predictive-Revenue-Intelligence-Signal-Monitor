@@ -313,18 +313,23 @@ print("      Chart 16 saved: A/B testing framework")
 
 # Save results
 ab_results = {
+    "SIMULATED": True,
+    "note": ("These outcomes are SIMULATED. Customer churn is drawn at random from the "
+             "model's probabilities, and the treatment group is given an ASSUMED "
+             f"{INTERVENTION_EFFECT*100:.0f}% churn reduction. The p-values and dollar figures "
+             "show how an A/B test would be analysed; they are not evidence that a "
+             "retention offer works."),
     "experiment_design": {
-        "control_n"         : len(control),
-        "treatment_n"       : len(treatment),
-        "intervention_effect": INTERVENTION_EFFECT
+        "control_n"          : len(control),
+        "treatment_n"        : len(treatment),
+        "assumed_intervention_effect": INTERVENTION_EFFECT
     },
     "results": {
         "control_churn_rate"  : round(control_churn_rate, 4),
         "treatment_churn_rate": round(treatment_churn_rate, 4),
         "absolute_reduction"  : round(absolute_reduction, 4),
         "relative_reduction"  : round(relative_reduction, 4),
-        "mrr_saved_monthly"   : round(mrr_saved, 2),
-        "mrr_saved_annual"    : round(mrr_saved * 12, 2),
+        "simulated_mrr_saved_monthly": round(mrr_saved, 2),
         "p_value_ztest"       : round(p_ztest, 4),
         "p_value_chi2"        : round(p_chi2, 4),
         "significant"         : bool(p_ztest < 0.05),
@@ -338,12 +343,11 @@ print("\n" + "=" * 60)
 print("  Phase 4 Complete — A/B Testing Framework")
 print("=" * 60)
 print(f"\n  Experiment size  : {len(high_risk):,} high-risk customers")
-print(f"  Churn reduction  : {relative_reduction*100:.1f}% relative")
+print(f"  Churn reduction  : {relative_reduction*100:.1f}% relative (SIMULATED from an assumed {INTERVENTION_EFFECT*100:.0f}% effect)")
 print(f"  Statistical sig  : {'YES' if p_ztest < 0.05 else 'NO'} (p={p_ztest:.4f})")
-print(f"  MRR saved/month  : ${mrr_saved:,.0f}")
-print(f"  MRR saved/year   : ${mrr_saved*12:,.0f}")
-print(f"  DiD estimate     : {did_estimate*100:+.1f}pp causal effect")
+print(f"  MRR saved/month  : ${mrr_saved:,.0f}  (SIMULATED)")
+print(f"  DiD estimate     : {did_estimate*100:+.1f}pp (simulated data, illustrative only)")
 print(f"\n  Chart saved: 16")
 print(f"  Data saved: ab_test_results.json")
-print(f"\n  Next: build Streamlit dashboard")
+print("\n  NOTE: this is a simulation of an A/B test, not a real experiment.")
 print("=" * 60)

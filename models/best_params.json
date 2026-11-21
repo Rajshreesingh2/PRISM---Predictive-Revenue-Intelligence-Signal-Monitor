@@ -1,12 +1,10 @@
 {
-  "n_estimators": 332,
+  "n_estimators": 460,
   "max_depth": 3,
-  "learning_rate": 0.012482773405540354,
-  "subsample": 0.7517527750441457,
-  "colsample_bytree": 0.6572448292782412,
-  "min_child_weight": 2,
-  "scale_pos_weight": 2.1722972972972974,
+  "learning_rate": 0.010249962487381655,
+  "subsample": 0.6526448942783232,
+  "colsample_bytree": 0.9357803966639343,
+  "scale_pos_weight": 2.768561872909699,
   "random_state": 42,
-  "verbosity": 0,
-  "eval_metric": "auc"
+  "verbosity": 0
 }

@@ -1,0 +1,3 @@
+Contract,InternetService,total,churn_rate,avg_mrr,mrr_at_risk,annual_risk,cost_15pct_discount,intervention_roi_x
+Month-to-month,Fiber optic,2128,54.61,87.02,100482.0,1205784.0,15072.3,6.67
+Month-to-month,DSL,1223,32.22,50.22,18367.25,220407.0,2755.09,6.67

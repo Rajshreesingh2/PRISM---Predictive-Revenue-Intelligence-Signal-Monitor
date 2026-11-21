@@ -1,0 +1,12 @@
+{
+  "split_method": "stratified random 80/20",
+  "random_state": 42,
+  "n_train": 5634,
+  "n_test": 1409,
+  "train_churn_rate": 0.2654,
+  "test_churn_rate": 0.2654,
+  "best_model": "Logistic Regression",
+  "threshold_chosen_on": "cross-validated predictions on train data",
+  "model_chosen_by": "5-fold cross-validated AUC on train data",
+  "note": "The test set is used once, to report the final score."
+}

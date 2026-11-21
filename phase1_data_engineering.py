@@ -30,16 +30,21 @@ print("=" * 60)
 # ─────────────────────────────────────────────────────────────
 print("\n[1/6] Loading Kaggle Telco dataset...")
 
-csv_files = glob.glob("WA_Fn*.csv") + glob.glob("telco*.csv") + glob.glob("Telco*.csv")
+# The raw IBM Telco CSV is included in data/raw/ (public sample dataset)
+csv_files = (glob.glob("data/raw/*.csv") + glob.glob("WA_Fn*.csv")
+             + glob.glob("telco*.csv") + glob.glob("Telco*.csv"))
 if not csv_files:
-    raise FileNotFoundError("Kaggle CSV not found. Place it in the PRISM folder.")
+    raise FileNotFoundError(
+        "Raw Telco CSV not found. Put WA_Fn-UseC_-Telco-Customer-Churn.csv in data/raw/ "
+        "(download: https://raw.githubusercontent.com/IBM/telco-customer-churn-on-icp4d/"
+        "master/data/Telco-Customer-Churn.csv)")
 
 df = pd.read_csv(csv_files[0])
 print(f"      Raw: {df.shape[0]:,} customers, {df.shape[1]} columns")
 
 # Fix types
 df["TotalCharges"] = pd.to_numeric(df["TotalCharges"], errors="coerce")
-df["TotalCharges"].fillna(df["TotalCharges"].median(), inplace=True)
+df["TotalCharges"] = df["TotalCharges"].fillna(df["TotalCharges"].median())
 
 # Binary target
 df["Churn_binary"] = (df["Churn"] == "Yes").astype(int)
@@ -202,6 +207,18 @@ print("\n[3/6] Fetching macro signals from APIs...")
 
 all_macro = {}
 
+# If an API cannot be reached (offline, rate limit, no key), reuse the values saved
+# by the last successful run instead of hard-coded guesses, so re-runs are repeatable.
+try:
+    with open("data/macro_signals.json") as f:
+        _cache = json.load(f)
+except Exception:
+    _cache = {}
+
+def fb(key, default):
+    """Fallback value: last saved value if we have one, else a default."""
+    return _cache.get(key, default)
+
 # World Bank
 print("      World Bank API...")
 try:
@@ -221,8 +238,10 @@ try:
 except Exception as e:
     print(f"        Unavailable — using fallback")
     all_macro.update({
-        "macro_gdp_growth": 2.1, "macro_inflation": 3.4,
-        "macro_unemployment": 3.7, "macro_gni_per_capita": 76000
+        "macro_gdp_growth": fb("macro_gdp_growth", 2.1),
+        "macro_inflation": fb("macro_inflation", 3.4),
+        "macro_unemployment": fb("macro_unemployment", 3.7),
+        "macro_gni_per_capita": fb("macro_gni_per_capita", 76000)
     })
 
 # Google Trends
@@ -246,9 +265,9 @@ try:
 except Exception as e:
     print(f"        Unavailable — using fallback")
     all_macro.update({
-        "trend_churn_intent": 42.3,
-        "trend_switch_carrier": 38.7,
-        "trend_churn_velocity": 3.2
+        "trend_churn_intent": fb("trend_churn_intent", 42.3),
+        "trend_switch_carrier": fb("trend_switch_carrier", 38.7),
+        "trend_churn_velocity": fb("trend_churn_velocity", 3.2)
     })
 
 # Alpha Vantage
@@ -264,7 +283,7 @@ try:
     print(f"        Telecom sector: {all_macro['macro_telecom_sector']:+.2f}%")
 except Exception as e:
     print(f"        Unavailable — using fallback")
-    all_macro["macro_telecom_sector"] = -1.2
+    all_macro["macro_telecom_sector"] = fb("macro_telecom_sector", -1.2)
 
 # Derived macro features
 all_macro["macro_stress_index"] = (
@@ -301,6 +320,15 @@ df_numeric = df.drop(columns=drop_for_selection)
 df_numeric = df_numeric.select_dtypes(include=[np.number])
 df_numeric = df_numeric.fillna(0)
 
+# Drop columns that never change. The macro signals (GDP, inflation, ...) are single
+# country-level numbers copied onto every row, so they cannot tell one customer from
+# another and cannot help a churn model. They stay in telco_cleaned.csv for reference.
+constant_cols = [c for c in df_numeric.columns if df_numeric[c].nunique() <= 1]
+if constant_cols:
+    print(f"      Dropping {len(constant_cols)} constant columns (same value for every customer): "
+          f"{constant_cols}")
+    df_numeric = df_numeric.drop(columns=constant_cols)
+
 X = df_numeric.drop(columns=["Churn_binary"])
 y = df_numeric["Churn_binary"]
 
@@ -329,22 +357,32 @@ mi_df.to_csv("data/feature_importance_mi.csv", index=False)
 # ─────────────────────────────────────────────────────────────
 print("\n[5/6] Checking multicollinearity (VIF)...")
 
-from statsmodels.stats.outliers_influence import variance_inflation_factor
+def iterative_vif(X, threshold=10.0):
+    """Remove collinear features ONE AT A TIME.
+    VIF says how much a feature is just a mix of the others. Removing one feature
+    changes every other feature's VIF, so we drop the worst one, recompute, and
+    repeat until every remaining VIF is at or below the threshold."""
+    cols, removed = list(X.columns), []
+    while len(cols) > 1:
+        corr = np.corrcoef(X[cols].values, rowvar=False)
+        # VIF of each feature = diagonal of the inverse correlation matrix
+        # (tiny ridge keeps perfectly-collinear sets invertible)
+        vif = np.diag(np.linalg.inv(corr + 1e-8 * np.eye(len(cols))))
+        worst = int(np.argmax(vif))
+        if vif[worst] <= threshold:
+            break
+        removed.append((cols[worst], float(vif[worst])))
+        cols.pop(worst)
+    return cols, removed
+
 
 X_selected = X[selected_features[:-1]].copy()
 
-# Quick VIF — remove features with VIF > 10
-vif_results = []
 try:
-    for i, col in enumerate(X_selected.columns[:30]):  # check first 30
-        vif = variance_inflation_factor(X_selected.values, i)
-        vif_results.append({"feature": col, "vif": vif})
-
-    vif_df = pd.DataFrame(vif_results)
-    high_vif = vif_df[vif_df["vif"] > 10]["feature"].tolist()
-    final_features = [f for f in selected_features[:-1] if f not in high_vif]
-    final_features.append("Churn_binary")
-    print(f"      Features removed (VIF > 10): {len(high_vif)}")
+    kept, removed = iterative_vif(X_selected, threshold=10.0)
+    final_features = kept + ["Churn_binary"]
+    print(f"      Features checked: {X_selected.shape[1]} (all of them)")
+    print(f"      Features removed (VIF > 10, one at a time): {len(removed)}")
     print(f"      Final feature count: {len(final_features)-1}")
 except Exception as e:
     print(f"      VIF check skipped: {e}")
